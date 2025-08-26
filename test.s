@@ -265,18 +265,15 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 		move.w	len,D0
 .fill_loop:
 		move.l	val1,(A0)+
-		move.l	val2,(A0)+
+		move.l	val2,(A1)+
 		dbf	D0,.fill_loop
 		ENDM
-
-
 
 s_WAIT_A_MOMENT:
 		dc.b	"WAIT FOR EVER\0\0\0"
 
 nop_rte:
 		rte
-
 
 reset_lineram_:
 		movem.l	A3/A2/A1/A0/D3/D2/D1/D0, -(SP)
@@ -361,8 +358,6 @@ LAB_00005b9a:
 		dbf	D0,LAB_00005b9a
 		rts
 
-
-
 playfield_scroll_params_reset:
 PF_SCROLL_REGS = $4000d8
 ram_flipscreen = -$7ec2	
@@ -395,7 +390,6 @@ ram_flipscreen = -$7ec2
 .end:
 		movem.l	(SP)+, A0
 		rts	
-
 
 PF_0_TILES = $610000
 PF_1_TILES = $612000
@@ -515,56 +509,31 @@ FOR2:
 		addq.w	#$4,D1
 		dbf	D2,FOR2
 		dbf	D3,FOR1
-		bsr.w	zero_all_411_structs
 		rts	
-
-zero_all_411_structs:
-		lea	($410000).l,A0
-		move.w	#$7ff,D0
-LAB_00000c1a:
-		clr.w	(A0)+
-		dbf	D0,LAB_00000c1a
-		lea	($410000).l,A0
-		lea	($411000).l,A1
-		move.w	#$f,D0
-LAB_00000c30:
-		move.l	A0,(A1)+
-		lea	($100,A0),A0
-		dbf	D0,LAB_00000c30
-		rts	
-
-PALREL	MACRO	length,source,dest
-		dc.w length, source, dest
-		ENDM
-
-		PALREL	$0010,$0000,$0000
-		PALREL	$0010,$0040,$0040
-		PALREL	$0010,$0080,$0080
-		PALREL	$0010,$0080,$00c0
-		PALREL	$0010,$00c0,$0100
-		PALREL	$0010,$00c0,$0140
-		PALREL	$0010,$0100,$0180
-		PALREL	$0010,$0100,$01c0
-		PALREL	$0010,$0140,$0200
-		PALREL	$0010,$0140,$0240
-		PALREL	$0010,$0180,$0280
-		PALREL	$0010,$0180,$02c0
-		PALREL	$0010,$01c0,$0300
-		PALREL	$0010,$01c0,$0340
-		PALREL	$0010,$0200,$0380
-		PALREL	$0010,$0200,$03c0
-		PALREL	$0010,$0240,$0400
-		PALREL	$0010,$0240,$0440
-		PALREL	$0010,$0280,$0480
-		PALREL	$0010,$0280,$04c0
-		PALREL	$0010,$02c0,$0500
-		PALREL	$0010,$02c0,$0540
-		PALREL	$0010,$0300,$0580
-		PALREL	$0010,$0380,$05c0
-		PALREL	$0010,$0380,$0600
-		PALREL	$0010,$0340,$0640
-		PALREL	$0010,$0340,$0680
-
+	
+	;; A0: dest
+	;; D1: count (bytes)
+	;; uses: A2, D0, A0, D1
+copyimm:
+	movea.l	(SP), A2
+	dbt	D1, .retn
+.loop:
+	move.b	(A2)+, D0
+	move.b	D0, (A0)+
+	dbf	D1, .loop
+.retn:
+	addq.w	#$1,A2
+	move.l	A2,D1
+	bclr.l	#$0,D1
+	move.l	D1,(SP)
+	rts
+	
+COPYIMM	MACRO	dest, length
+	lea	dest, A0
+	moveq length, D1
+	jsr copyimm
+	ENDM
+	
 SYSTEM_PALETTE_0:	
 		dc.l	$00000000, $00303030, $00404040, $00505050
 		dc.l	$00606060, $00707070, $00808080, $00909090
@@ -655,7 +624,12 @@ entry:
 	;; jsr	clear_shared_ram_
 	;; jsr	Z_reset_3FF_3FE_E0_1_FF
 	;; jsr	coin_exchange_rate_init_
-
+		COPYIMM ($440000).l,#64
+		dc.l	$00000000, $00303030, $00404040, $00505050
+		dc.l	$00606060, $00707070, $00808080, $00909090
+		dc.l	$00000000, $00101010, $00202020, $00303030
+		dc.l	$00404040, $00505050, $00606060, $00707070
+		jsr	load_game_font
 		PRINT	s_WAIT_A_MOMENT,14,15,#$0
 .loop
 		jmp .loop
