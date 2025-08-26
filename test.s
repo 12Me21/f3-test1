@@ -538,7 +538,7 @@ ready = $400048
 .loop:
 	andi #$F0FF,SR
 	tst.b	ready
-	beq	.loop
+	bne	.loop
 	move.b #0, ready
 	
 	move.l 	D6, -(SP)
