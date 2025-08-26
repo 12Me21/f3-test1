@@ -197,8 +197,11 @@ font_def:
 		dc.b [3]$00, $07, [3]$00, $07, [2]$00, $72, $20, $07, $22, $72
 		dc.b $20, $07, $22, $72, $70, $07, $27, $77, $00, $07, $70
 		dc.b [16]$00
-
-
+	
+sprintf:
+	BINCLUDE "sprintf.bin"
+	rts
+	
 ;;; print string on stack
 print_str:
 strptr = $8
@@ -221,7 +224,22 @@ LAB_000057c2:
 		movem.l	(SP)+, D7/A0/A1
 		unlk	A6
 		rts	
-
+	
+	
+printf:
+	link.w	A6,#-$40
+	pea	($12,A6)
+	move.l	($e,A6),-(SP)
+	pea	(-$40,A6)
+	jsr	sprintf
+	move.w	($c,A6),-(SP)
+	move.l	($8,A6),-(SP)
+	pea	(-$40,A6)
+	jsr	print_str
+	lea	($16,SP),SP
+	unlk	A6
+	rts	
+	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
 PRINT	MACRO charptr,x,y,color
 		move.w 	color,-(SP)
@@ -607,8 +625,11 @@ entry:
 		dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 		dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 		dc.l	$0000f800, $0000f800, $0000f800, $0000f800
-		jsr	load_game_font
-		PRINT	s_WAIT_A_MOMENT,14,15,#$0
+	jsr	load_game_font
+	pea	s_WAIT_A_MOMENT
+	move.w	#0, -(SP)
+	pea	(text_coord(14,15)).l
+	jsr	printf
 .loop
 		jmp .loop
 
