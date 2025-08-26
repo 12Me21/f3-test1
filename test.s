@@ -25,11 +25,53 @@ AVEC_7:
 
 ;;	dc.l [($400-*)/4]nop_rte
 
-		ORG	$400
-
+	ORG	$400
+	
+	;; A0: dest
+	;; D1: count (bytes)
+	;; uses: A2, D0, A0, D1
+copyimm:
+	movea.l	(SP), A2
+	dbt	D1, .retn
+.loop:
+	move.b	(A2)+, (A0)+
+	dbf	D1, .loop
+.retn:
+	addq.w	#$1,A2
+	move.l	A2,D1
+	bclr.l	#$0,D1
+	move.l	D1,(SP)
+	rts
+	
+COPYIMM	MACRO	dest, length
+	lea	dest, A0
+	move	length, D1
+	jsr	copyimm
+	ENDM
+	
+memcpyl:
+.dest = 8
+.src = .dest+4
+.num = .src+4
+.end = .num+2
+	link.w	A6,#0
+	movem.l	A1/A0/D1, -(SP)
+	movea.l	(.dest,A6),A0
+	movea.l	(.src,A6),A1
+	move.w	(.num,A6),D1
+	dbt	D1, .retn
+.loop:
+	move.l	(A1)+,(A0)+
+	dbf	D1, .loop
+.retn:
+	movem.l	(SP)+, D0/D1/A0/A1
+	unlk	A6
+	rtd	#(.end-8)
+	
 font_def:
 	INCLUDE "font.s"
-
+	
+;;; not position independent!
 	ORG $5dde
 sprintf:
 	BINCLUDE "sprintf.bin"
@@ -45,14 +87,14 @@ color = $10
 		movea.l	(strptr,A6),A0
 		movea.l	(textram_loc,A6),A1
 		move.w	(color,A6),D7
-		add.w	D7,D7
-.LAB_000057b8:
+		add.w		D7,D7
+.loop:
 		move.b	(A0)+,D0
-		beq	.LAB_000057c2
+		beq	.retn
 		move.b	D7,(A1)+
 		move.b	D0,(A1)+
-		bra	.LAB_000057b8
-.LAB_000057c2:
+		bra	.loop
+.retn:
 		move.l	A1,D0
 		movem.l	(SP)+, D7/A0/A1
 		unlk	A6
@@ -71,6 +113,30 @@ printf:
 	unlk	A6
 	rtd #$A
 	
+cursor = $400042
+log:
+.strptr = 8
+.color = .strptr+4
+.end = .color+2	
+	link.w	A6,#$0
+	movem.l	A1/A0/D7, -(SP)
+	movea.l	(.strptr,A6),A0
+	move.w	(.color,A6),D7
+	add.w		D7,D7
+.loop:
+	move.b	(A0)+,D0
+	beq	.retn
+	move.l (cursor), A1
+	move.b	D7,(A1)+
+	move.b	D0,(A1)+
+	addq.l #2, (cursor)
+	bra	.loop
+.retn:
+	move.l	A1,D0
+	movem.l	(SP)+, D7/A0/A1
+	unlk	A6
+	rtd #(.end-8)
+
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
 PRINT	MACRO charptr,x,y,color
 		move.w 	color,-(SP)
@@ -116,10 +182,6 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 		move.l	val2,(A1)+
 		dbf	D0,.fill_loop
 		ENDM
-
-s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER %d!\0\0\0"
-	ALIGN 2
 
 nop_rte:
 		rte
@@ -311,11 +373,11 @@ reset_tilemap_3:
 
 reset_text_tilemaps_lineram:
 		jsr	reset_pivot
-		jsr reset_tilemap_0
-		jsr reset_tilemap_1
-		jsr reset_tilemap_2
-		jsr reset_tilemap_3
-		jsr reset_lineram
+		jsr	reset_tilemap_0
+		jsr	reset_tilemap_1
+		jsr	reset_tilemap_2
+		jsr	reset_tilemap_3
+		jsr	reset_lineram
 		rts
 
 SPRITERAM_TOP = $600000
@@ -345,63 +407,11 @@ reset_spriteram:
 
 PALETTE_RAM = $440000
 load_system_palettes:
-		move.w	#$1a,D3
-		lea	($15b5a).l,A2
-		lea	(PALETTE_RAM).l,A0
-		lea	($15bfc).l,A1
-FOR1:
-		move.w	(A2)+,D2
-		subq.w	#$1,D2
-		move.w	(A2)+,D0
-		move.w	(A2)+,D1
-FOR2:
-		move.l	$0(A1,D0*1),$0(A0,D1*1)
-		addq.w	#$4,D0
-		addq.w	#$4,D1
-		dbf	D2,FOR2
-		dbf	D3,FOR1
-		rts	
-	
-	;; A0: dest
-	;; D1: count (bytes)
-	;; uses: A2, D0, A0, D1
-copyimm:
-	movea.l	(SP), A2
-	dbt	D1, .retn
-.loop:
-	move.b	(A2)+, (A0)+
-	dbf	D1, .loop
-.retn:
-	addq.w	#$1,A2
-	move.l	A2,D1
-	bclr.l	#$0,D1
-	move.l	D1,(SP)
+	move.w	#(15*16), -(SP)
+	pea	palettes
+	pea	PALETTE_RAM
+	bsr	memcpyl
 	rts
-	
-COPYIMM	MACRO	dest, length
-	lea	dest, A0
-	move	length, D1
-	jsr	copyimm
-	ENDM
-	
-memcpyl:
-dest = 8
-src = dest+4
-num = src+4
-end = num+2
-	link.w	A6,#0
-	movem.l	A1/A0/D1, -(SP)
-	movea.l	(dest,A6),A0
-	movea.l	(src,A6),A1
-	move.w	(num,A6),D1
-	dbt	D1, .retn
-.loop:
-	move.l	(A1)+,(A0)+
-	dbf	D1, .loop
-.retn:
-	movem.l	(SP)+, D0/D1/A0/A1
-	unlk	A6
-	rtd	#(end-8)
 	
 palettes:
 	dc.l	$00000000, $00303030, $00404040, $00505050
@@ -465,27 +475,24 @@ palettes:
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	
+s_WAIT_A_MOMENT:
+	dc.b	"WAIT FOR EVER %X!\0"
+	ALIGN 2
 
 RAM_BASE = $408000
 entry:
 	lea (RAM_BASE).l, A5
 	nop
 	
+	move.l #$61c000, cursor
 	jsr	load_game_font
 	jsr	playfield_scroll_params_reset
 	jsr	reset_text_tilemaps_lineram
 	jsr	reset_spriteram
-	;; jsr	load_system_palettes
+	jsr	load_system_palettes
 	;; jsr	clear_shared_ram_
 	;; jsr	Z_reset_3FF_3FE_E0_1_FF
 	;; jsr	coin_exchange_rate_init_
-	
-	move.w	#(15*16), -(SP)
-	pea	palettes
-	pea	$440000
-	jsr	memcpyl
-	
-	jsr	load_game_font
 	
 	move.l 	#5, -(SP)
 	pea	s_WAIT_A_MOMENT
@@ -494,14 +501,10 @@ entry:
 	jsr	printf
 	lea	($4,SP),SP
 	
-.loop
-	move.l 	SP, D0
-	move.l D0, -(SP)
-	pea	s_WAIT_A_MOMENT
+.loop:
 	move.w	#$8, -(SP)
-	pea	(text_coord(14,15)).l
-	jsr	printf
-;	lea	($4,SP),SP
+	pea s_WAIT_A_MOMENT
+	jsr log
 	
 	jmp .loop
 
