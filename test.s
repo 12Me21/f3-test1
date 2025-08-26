@@ -130,10 +130,12 @@ log:
 	move.b	D7,(A1)+
 	move.b	D0,(A1)+
 	addq.l #2, (cursor)
-	andi.w #$3FF, (cursor+2)
+	andi.w #$CFFF, (cursor+2)
 	bra	.loop
 .retn:
-	move.l	A1,D0
+	add.w #$7F, (cursor+2)
+	andi.w #$FF80, (cursor+2)
+	
 	movem.l	(SP)+, D7/A0/A1
 	unlk	A6
 	rtd #(.end-8)
@@ -310,17 +312,23 @@ PF_1_TILES = $612000
 PF_2_TILES = $614000
 PF_3_TILES = $616000
 PVT_TILES = $61c000
+PVT_X = $660018
+PVT_Y = $66001A
 reset_pivot:
-		movem.l	A0/D1/D0, -(SP)
-		move.l	#$2900290,D1
-		FILL_L (PVT_TILES).l, #$7ff, D1
-		moveq	#$0,D1
-		move.w	D1,(-$7ef2,A5)
-		move.w	D1,(-$7eee,A5)
-		move.l	D1,(-$7eca,A5)
-		move.w	D1,(-$7ec6,A5)
-		movem.l	(SP)+, D0/D1/A0
-		rts	
+	movem.l	A0/D1/D0, -(SP)
+	move.l	#$2900290,D1
+	FILL_L (PVT_TILES).l, #$7ff, D1
+	moveq	#$0,D1
+	move.w	D1,(-$7ef2,A5)
+	move.w	D1,(-$7eee,A5)
+	move.l	D1,(-$7eca,A5)
+	move.w	D1,(-$7ec6,A5)
+	moveq #(24), D1
+	move.w	D1,PVT_Y
+	moveq #(42), D1
+	move.w	D1,PVT_X
+	movem.l	(SP)+, D0/D1/A0
+	rts	
 reset_tilemap_0:
 		movem.l	A1/A0/D1/D0, -(SP)
 		moveq	#$0,D1
@@ -502,10 +510,10 @@ entry:
 	jsr	printf
 	lea	($4,SP),SP
 	
-.loop:
 	move.w	#$8, -(SP)
 	pea s_WAIT_A_MOMENT
 	jsr log
+.loop:
 	
 	jmp .loop
 
