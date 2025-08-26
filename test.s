@@ -3,6 +3,9 @@
 		PADDING OFF
 		ORG $000000
 
+PVT_X = $660018
+PVT_Y = $66001A
+	
 RESET_SP:	
 		dc.l	$0041fffc
 RESET_PC:	
@@ -113,6 +116,18 @@ printf:
 	unlk	A6
 	rtd #$A
 	
+logf:
+	link.w	A6,#-$40
+	pea	($e,A6)
+	move.l	($a,A6),-(SP)
+	pea	(-$40,A6)
+	jsr	sprintf
+	move.w	($8,A6),-(SP)
+	pea	(-$40,A6)
+	jsr	log
+	unlk	A6
+	rtd #$6
+
 cursor = $400042
 log:
 .strptr = 8
@@ -135,6 +150,7 @@ log:
 .retn:
 	add.w #$7F, (cursor+2)
 	andi.w #$FF80, (cursor+2)
+	;subq.l #8, PVT_Y
 	
 	movem.l	(SP)+, D7/A0/A1
 	unlk	A6
@@ -312,8 +328,6 @@ PF_1_TILES = $612000
 PF_2_TILES = $614000
 PF_3_TILES = $616000
 PVT_TILES = $61c000
-PVT_X = $660018
-PVT_Y = $66001A
 reset_pivot:
 	movem.l	A0/D1/D0, -(SP)
 	move.l	#$2900290,D1
@@ -490,6 +504,7 @@ s_WAIT_A_MOMENT:
 
 RAM_BASE = $408000
 entry:
+	ori #$700, SR
 	lea (RAM_BASE).l, A5
 	nop
 	
@@ -510,21 +525,40 @@ entry:
 	jsr	printf
 	lea	($4,SP),SP
 	
-	move.w	#$8, -(SP)
+	move #6, D6
+	
+	move.l 	D6, -(SP)
 	pea s_WAIT_A_MOMENT
-	jsr log
+	move.w	#$8, -(SP)
+	jsr logf
+	lea	($4,SP),SP
+	addq #1, D6
+	
+ready = $400048
 .loop:
+	andi #$F0FF,SR
+	tst.b	ready
+	bne	.loop
+	move.b #0, ready
+	
+	move.l 	D6, -(SP)
+	pea s_WAIT_A_MOMENT
+	move.w	#$8, -(SP)
+	jsr logf
+	lea	($4,SP),SP
+	addq #1, D6
 	
 	jmp .loop
 
 
 FIO_0 = $4a0000
 vblank:
-		moveq	#$0, D0
-		move.b	D0, (FIO_0).l
-		rte
+	move.b 	#1, ready
+	
+	move.b	#$0, (FIO_0).l
+	rte
 vblank_2:
-		rte
+	rte	
 timer:
-		rte
+	rte
 
