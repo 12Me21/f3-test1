@@ -129,6 +129,7 @@ logf:
 	rtd #$6
 
 cursor = $400042
+pvy = $400040
 log:
 .strptr = 8
 .color = .strptr+4
@@ -150,7 +151,14 @@ log:
 .retn:
 	add.w #$7F, (cursor+2)
 	andi.w #$FF80, (cursor+2)
-	;subq.l #8, PVT_Y
+	; [yyyy y... ....]
+	;bfextu cursor+2{7:13},D0  how the fuck does bfext work??
+							  ;asr.l #7,D0
+	move.w (cursor+2), D0
+	andi.w #$F80,D0
+	eor.w #$FFFF, D0
+	asr.l #4, D0
+	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/A0/A1
 	unlk	A6
@@ -538,7 +546,7 @@ ready = $400048
 .loop:
 	andi #$F0FF,SR
 	tst.b	ready
-	bne	.loop
+	beq	.loop
 	move.b #0, ready
 	
 	move.l 	D6, -(SP)
