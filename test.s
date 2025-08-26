@@ -118,7 +118,8 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 		ENDM
 
 s_WAIT_A_MOMENT:
-		dc.b	"WAIT FOR EVER!\0\0"
+	dc.b	"WAIT FOR EVER %d!\0\0\0"
+	ALIGN 2
 
 nop_rte:
 		rte
@@ -366,7 +367,7 @@ FOR2:
 	;; uses: A2, D0, A0, D1
 copyimm:
 	movea.l	(SP), A2
-	dbf	D1, .retn
+	dbt	D1, .retn
 .loop:
 	move.b	(A2)+, (A0)+
 	dbf	D1, .loop
@@ -389,14 +390,16 @@ src = dest+4
 num = src+4
 end = num+2
 	link.w	A6,#0
+	movem.l	A1/A0/D1, -(SP)
 	movea.l	(dest,A6),A0
 	movea.l	(src,A6),A1
-	move.w	(num,A6),D7
-	dbf	D1, .retn
+	move.w	(num,A6),D1
+	dbt	D1, .retn
 .loop:
 	move.l	(A1)+,(A0)+
 	dbf	D1, .loop
 .retn:
+	movem.l	(SP)+, D0/D1/A0/A1
 	unlk	A6
 	rtd	#(end-8)
 	
@@ -484,15 +487,23 @@ entry:
 	
 	jsr	load_game_font
 	
-	move.l 	#5, D0
+	move.l 	#5, -(SP)
 	pea	s_WAIT_A_MOMENT
-	move.w	#0, -(SP)
+	move.w	#$8, -(SP)
 	pea	(text_coord(14,15)).l
 	jsr	printf
-	move.l 	#5, D0
-	lea	($26,SP),SP
+	lea	($4,SP),SP
+	
 .loop
-		jmp .loop
+	move.l 	SP, D0
+	move.l D0, -(SP)
+	pea	s_WAIT_A_MOMENT
+	move.w	#$8, -(SP)
+	pea	(text_coord(14,15)).l
+	jsr	printf
+;	lea	($4,SP),SP
+	
+	jmp .loop
 
 
 FIO_0 = $4a0000
