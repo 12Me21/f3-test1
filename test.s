@@ -130,6 +130,7 @@ log:
 	move.b	D7,(A1)+
 	move.b	D0,(A1)+
 	addq.l #2, (cursor)
+	andi.w #$3FF, (cursor+2)
 	bra	.loop
 .retn:
 	move.l	A1,D0
