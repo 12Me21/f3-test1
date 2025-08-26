@@ -146,18 +146,19 @@ log:
 	move.b	D7,(A1)+
 	move.b	D0,(A1)+
 	addq.l #2, (cursor)
-	andi.w #$CFFF, (cursor+2)
+	andi.w #$DFFF, (cursor+2)
 	bra	.loop
 .retn:
 	add.w #$7F, (cursor+2)
 	andi.w #$FF80, (cursor+2)
-	; [yyyy y... ....]
+	; [y yyyy y... ....]
 	;bfextu cursor+2{7:13},D0  how the fuck does bfext work??
 							  ;asr.l #7,D0
 	move.w (cursor+2), D0
-	andi.w #$F80,D0
+	andi.w #$1F80,D0
 	eor.w #$FFFF, D0
 	asr.l #4, D0
+	addi.w #257, D0
 	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/A0/A1
@@ -507,7 +508,7 @@ palettes:
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	
 s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER %X!\0"
+	dc.b	"WAIT FOR EVER %d!\0"
 	ALIGN 2
 
 RAM_BASE = $408000
@@ -526,18 +527,20 @@ entry:
 	;; jsr	Z_reset_3FF_3FE_E0_1_FF
 	;; jsr	coin_exchange_rate_init_
 	
-	move.l 	#5, -(SP)
-	pea	s_WAIT_A_MOMENT
-	move.w	#$8, -(SP)
-	pea	(text_coord(14,15)).l
-	jsr	printf
-	lea	($4,SP),SP
+;	move.l 	#5, -(SP)
+;	pea	s_WAIT_A_MOMENT
+;	move.w	#$8, -(SP)
+;	pea	(text_coord(14,15)).l
+;	jsr	printf
+;	lea	($4,SP),SP
 	
 	move #6, D6
 	
 	move.l 	D6, -(SP)
 	pea s_WAIT_A_MOMENT
-	move.w	#$8, -(SP)
+	move.l	D6, D0
+	andi.l	#15, D0
+	move.w	D0, -(SP)
 	jsr logf
 	lea	($4,SP),SP
 	addq #1, D6
@@ -551,7 +554,9 @@ ready = $400048
 	
 	move.l 	D6, -(SP)
 	pea s_WAIT_A_MOMENT
-	move.w	#$8, -(SP)
+	move.l	D6, D0
+	andi.l	#15, D0
+	move.w	D0, -(SP)
 	jsr logf
 	lea	($4,SP),SP
 	addq #1, D6
@@ -562,7 +567,6 @@ ready = $400048
 FIO_0 = $4a0000
 vblank:
 	move.b 	#1, ready
-	
 	move.b	#$0, (FIO_0).l
 	rte
 vblank_2:
