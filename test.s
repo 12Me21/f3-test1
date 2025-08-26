@@ -198,6 +198,7 @@ font_def:
 		dc.b $20, $07, $22, $72, $70, $07, $27, $77, $00, $07, $70
 		dc.b [16]$00
 	
+	ORG $5dde
 sprintf:
 	BINCLUDE "sprintf.bin"
 	rts
@@ -213,19 +214,18 @@ color = $10
 		movea.l	(textram_loc,A6),A1
 		move.w	(color,A6),D7
 		add.w	D7,D7
-LAB_000057b8:
+.LAB_000057b8:
 		move.b	(A0)+,D0
-		beq.b	LAB_000057c2
+		beq	.LAB_000057c2
 		move.b	D7,(A1)+
 		move.b	D0,(A1)+
-		bra.b	LAB_000057b8
-LAB_000057c2:
+		bra	.LAB_000057b8
+.LAB_000057c2:
 		move.l	A1,D0
 		movem.l	(SP)+, D7/A0/A1
 		unlk	A6
 		rts	
-	
-	
+
 printf:
 	link.w	A6,#-$40
 	pea	($12,A6)
@@ -288,7 +288,7 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 		ENDM
 
 s_WAIT_A_MOMENT:
-		dc.b	"WAIT FOR EVER\0\0\0"
+		dc.b	"WAIT FOR EVER %d!\0\0\0"
 
 nop_rte:
 		rte
@@ -624,12 +624,16 @@ entry:
 		dc.l	$00f80090, $00f8f8f8, $00502880, $00000000
 		dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 		dc.l	$0000f800, $0000f800, $0000f800, $0000f800
-		dc.l	$0000f800, $0000f800, $0000f800, $0000f800
+	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
+	
 	jsr	load_game_font
+	
+	move.l	#5, -(SP)
 	pea	s_WAIT_A_MOMENT
 	move.w	#0, -(SP)
 	pea	(text_coord(14,15)).l
 	jsr	printf
+	lea	($26,SP),SP
 .loop
 		jmp .loop
 
