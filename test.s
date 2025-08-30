@@ -38,7 +38,7 @@ SPURIOUS_INT:
 		dc.l	vblank
 		dc.l	vblank_2
 		dc.l	default_interrupt
-		dc.l	default_interrupt
+		dc.l	timer
 		dc.l	default_interrupt
 		dc.l	default_interrupt
 		dc.l	default_interrupt
@@ -148,7 +148,8 @@ logf:
 log:
 .strptr = 8
 .color = .strptr+4
-.end = .color+2	
+.end = .color+2
+	disable_interrupts
 	link.w	A6,#$0
 	movem.l	A1/A0/D7, -(SP)
 	movea.l	(.strptr,A6),A0
@@ -164,8 +165,14 @@ log:
 	andi.w #$DFFF, (cursor+2)
 	bra	.loop
 .retn:
-	add.w #$7F, (cursor+2)
-	andi.w #$FF80, (cursor+2)
+	move.l (cursor), A1
+	move.w	#0, (A1)+
+	move.l A1, (cursor)
+	andi.w #$DFFF, (cursor+2)
+	move.l A1, D0
+	andi.w #$7F, D0
+	bne .retn
+	
 	; [y yyyy y... ....]
 	;bfextu cursor+2{7:13},D0  how the fuck does bfext work??
 							  ;asr.l #7,D0
@@ -178,6 +185,7 @@ log:
 	
 	movem.l	(SP)+, D7/A0/A1
 	unlk	A6
+	enable_interrupts
 	rtd #(.end-8)
 
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -502,7 +510,7 @@ entry:
 	move.b #255,$4a0006
 	move.b #0,$4a0004
 	move.b #0,$4a0014
-	move.w #$278b,$4c0000
+	move.w #$0000,$4c0000
 	move.w #$80,$66001e
 	;;  clear pivot port?
 	lea $621000, A0
@@ -534,21 +542,32 @@ entry:
 	
 	moveq.l #6, D6
 .spin:
-	stop #$2000
+	stop #$3000
 	bra .spin
 	
 loop:
-	move.l 	counter1, -(SP)
+	move.l SP, D0
+	move.l 	D0, -(SP)
 	pea.l s_WAIT_A_MOMENT
 	move.l	counter1, D0
 	andi.l	#15, D0
 	move.w	D0, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
+
+	move.l #0, D0
+	move.l 	D0, -(SP)
+	pea.l s_WAIT_A_MOMENT
+	move.l	counter1, D0
+	andi.l	#15, D0
+	move.w	D0, -(SP)
+	jsr logf
+	lea.l	($4,SP),SP
+	
 	addq.l #1, counter1
 	rts
 	
-vblank:
+vblank_2:
 	disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	kick_watchdog
@@ -556,12 +575,13 @@ vblank:
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	enable_interrupts
 	rte
-vblank_2:
-	rte	
+
 timer:
 	rte
-
+vblank:
+	
 default_interrupt:
+	rte
 	disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l 	#1, -(SP)
