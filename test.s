@@ -7,6 +7,7 @@ PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
 LINERAM = $620000
+SPRITE_RAM = $600000
 FIO_0 = $4a0000
 
 RAM_BASE = $408000
@@ -15,11 +16,10 @@ pvy = $400040
 counter1 = $400048
 abcd = $400050
 
-	
 disable_interrupts	macro
 	ori.w #$700, SR
 	endm
-	
+
 enable_interrupts	macro
 	andi.w #(~$700), SR
 	endm
@@ -218,13 +218,13 @@ printf:
 	rtd #$A
 	
 logf:
-	link.w	A6,#-$40
+	link.w	A6,#-$80
 	pea	($e,A6)
 	move.l	($a,A6),-(SP)
-	pea	(-$40,A6)
+	pea	(-$80,A6)
 	jsr	sprintf
 	move.w	($8,A6),-(SP)
-	pea	(-$40,A6)
+	pea	(-$80,A6)
 	jsr	log
 	unlk	A6
 	rtd #$6
@@ -238,26 +238,29 @@ log:
 	movem.l	A1/A0/D7, -(SP)
 	movea.l	(.strptr,A6),A0
 	move.w	(.color,A6),D7
-	add.w		D7,D7
+	lsl.w	#1, D7
+	lsl.w	#8, D7
+	move.w	D7, D0
 .loop:
 	move.b	(A0)+,D0
-	beq	.retn
+	beq	.clear_rest
 	move.l (cursor), A1
-	move.b	D7,(A1)+
-	move.b	D0,(A1)+
-	addq.l #2, (cursor)
-	andi.w #$DFFF, (cursor+2)
+	move.w	D0,(A1)+
+	addq.w #2, (cursor+2)
+	;; move to next line if exceeds half
+	addi.w #$0040, (cursor+2)
+	andi.w #$DFBF, (cursor+2)
 	bra	.loop
-.retn:
+.clear_rest:
 	move.l (cursor), A1
 	move.w	#0, (A1)+
 	move.l A1, (cursor)
 	andi.w #$DFFF, (cursor+2)
 	move.l A1, D0
 	andi.w #$7F, D0
-	bne .retn
+	bne .clear_rest
 	
-	; [y yyyy y... ....]
+	; [y yyyy yXXX XXX.]
 	;bfextu cursor+2{7:13},D0  how the fuck does bfext work??
 							  ;asr.l #7,D0
 	move.w (cursor+2), D0
@@ -322,7 +325,24 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 	;; a - latch alternate
 	;; m - latch normal
 	
-
+setup_scroll:	
+	move.w	#24,PVT_Y
+	move.w	#(42+(40-32)/2*8),PVT_X
+	rts
+	
+setup_pivot_port:
+	lea PIVOT_PORT, A0
+	move.w #$00F0, (A0)+
+	move.w #$1000, D0
+	lsr.w #1, D0
+	subq.w #2, D0
+	moveq #0, D1
+.cpp:
+	move.b #0,$4a0000
+	move.w D1, (A0)+
+	dbf D0, .cpp
+	rts
+	
 setup_lineram:
 	lea .defaults, A1
 	lea LINERAM, A0
@@ -358,7 +378,7 @@ setup_lineram:
 .defaults:
 	dc.w 0,0,0,0
 	dc.w 0,0,0,0
-	dc.w $02FF, $BDB9, $7000, $0037
+	dc.w $02FF, $BDB9, $7000, $0028
 	dc.w $0001, $300F, $0300, $7DDD
 	dc.w $0080, $0080, $0080, $0080
 	dc.w $0000, $0000, $0000, $0000
@@ -366,14 +386,27 @@ setup_lineram:
 	dc.w $100B, $1009, $1003, $1001
 	
 lineram_settings_table1:
-		dc.w $0000,$0000,$0000,$0000
-		dc.w $0000,$0000,$0000,$0000
-		dc.w $00fb,$bbbb,$7000,$0000
-		dc.w $0000,$300f,$0300,$aa88
-		dc.w $0080,$0080,$0080,$0080
-		dc.w $0000,$0000,$0000,$0000
-		dc.w $0000,$0000,$0000,$0000
-		dc.w $3002,$3009,$300c,$300d
+	dc.w $0000,$0000,$0000,$0000
+	dc.w $0000,$0000,$0000,$0000
+	dc.w $00fb,$bbbb,$7000,$0000
+	dc.w $0000,$300f,$0300,$aa88
+	dc.w $0080,$0080,$0080,$0080
+	dc.w $0000,$0000,$0000,$0000
+	dc.w $0000,$0000,$0000,$0000
+	dc.w $3002,$3009,$300c,$300d
+	
+setup_sprites:	
+	lea .defaults, A1
+	lea SPRITE_RAM, A0
+	move.l	#(8*3-1), D0
+.loop:
+	move.w	(A1)+, (A0)+
+	dbf D0, .loop
+	rts
+.defaults:
+	dc.w	$0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
+	dc.w	$0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
+	dc.w	$0000, $FFFF, $5000, $0000, $0000, $0000, $8002, $0000
 
 load_game_font:
 		lea	(font_def).l,A0
@@ -391,53 +424,6 @@ load_game_font:
 		clr.l	(A1)+
 		dbf	D0,.LAB_00005b9a
 		rts
-
-PF_0_TILES = $610000
-PF_1_TILES = $612000
-PF_2_TILES = $614000
-PF_3_TILES = $616000
-PVT_TILES = $61c000
-reset_pivot:
-	movem.l	A0/D1/D0, -(SP)
-	move.l	#$2900290,D1
-	FILL_L (PVT_TILES).l, #$7ff, D1
-	moveq	#$0,D1
-	move.w	D1,(-$7ef2,A5)
-	move.w	D1,(-$7eee,A5)
-	move.l	D1,(-$7eca,A5)
-	move.w	D1,(-$7ec6,A5)
-	moveq #(24), D1
-	move.w	D1,PVT_Y
-	moveq #(42), D1
-	move.w	D1,PVT_X
-	movem.l	(SP)+, D0/D1/A0
-	rts	
-
-
-SPRITERAM_TOP = $600000
-SPRITERAM_BODY = $600010
-SPRITE	MACRO dest,tile,zoom,xpos,ypos,blockctrl,palette
-		move.w tile, (dest)
-		move.w zoom, ($2,dest)
-		move.w xpos, ($4,dest)
-		move.w ypos, ($6,dest)
-		move.w blockctrl, ($8,dest)
-		move.w palette, ($A,dest)
-		ENDM
-
-reset_spriteram:
-		movem.l	A1/A0/D0, -(SP)
-		;; bsr.w	clear_spriteram_etc
-		lea	($600000).l,A0
-		lea	($600010).l,A1
-		SPRITE A0, #0, #0, #$3000, #$8000, #0, #0, #0, #0
-		SPRITE A1, #0, #0, #$3000, #$8000, #0, #0, #0, #0
-		lea	($608000).l,A0
-		lea	($608010).l,A1
-		SPRITE A0, #0, #0, #$3000, #$8000, $0, $0, $0, #0
-		SPRITE A1, #0, #0, #$3000, #$8000, #0, #0, #0, #0
-		movem.l	(SP)+, D0/A0/A1
-		rts	
 
 PALETTE_RAM = $440000
 load_system_palettes:
@@ -520,6 +506,8 @@ entry:
 	disable_interrupts
 	lea (RAM_BASE).l, A5
 	nop
+	move.l #$61c000, cursor
+	
 	; setup fio
 	move.b #0,$4a0000
 	move.b #255,$4a0006
@@ -529,42 +517,26 @@ entry:
 	move.w #$0000,$4c0000
 	; pf control
 	move.w #$80,$66001e
-	;;  clear pivot port?
-	lea PIVOT_PORT, A0
-	move.w #$F0, (A0)+
-	move.w #$1000, D0
-	lsr.w #1, D0
-	subq.w #2, D0
-	moveq #0, D1
-.cpp:
-	move.b #0,$4a0000
-	move.w D1, (A0)+
-	dbf D0, .cpp
-	
-	move.l #$61c000, cursor
+	;; clear graphics ram
+	move.l #$FFFF, D0
+	lea $600000, A0
+.loop1:
+	move.l #0, (A0)+
+	dbf D0, .loop1
+	;;  setup pivot port?
+	jsr 	setup_sprites
+	jsr	setup_scroll
+	jsr	setup_pivot_port
 	jsr	setup_lineram
 	jsr	load_game_font
 	jsr	load_system_palettes
-	jsr	reset_pivot
-	jsr	reset_spriteram
-	
-	;; jsr	clear_shared_ram_
-	;; jsr	Z_reset_3FF_3FE_E0_1_FF
-	;; jsr	coin_exchange_rate_init_
-	
-;	move.l 	#5, -(SP)
-;	pea	s_WAIT_A_MOMENT
-;	move.w	#$8, -(SP)
-;	pea	(text_coord(14,15)).l
-;	jsr	printf
-;	lea	($4,SP),SP
 	
 	moveq.l #6, D6
 	enable_interrupts
 	bra spin
 	
 s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER %d!\0"
+	dc.b	"WAIT FOR EVER -------------------------X %d!\0"
 	ALIGN 2
 	
 loop:
