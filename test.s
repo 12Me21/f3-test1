@@ -256,7 +256,7 @@ log:
 	cmpi.w	#COLS,D0
 	blt	.loop
 .clear_rest:
-	move.w #$40, (A1)+
+	clr.w (A1)+
 	move.l A1, D0
 	andi.w #$DFFF, D0
 	move.l D0, A1
@@ -539,24 +539,30 @@ entry:
 	bra spin
 	
 s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER -------------------------X %d!\0"
+	dc.b	"WAIT FOR EVER -------------------------X %X!\0"
 	ALIGN 2
 	
 loop:
 	move.l SP, D0
 	move.l 	D0, -(SP)
 	pea.l s_WAIT_A_MOMENT
-	move.l	counter1, D0
-	andi.l	#15, D0
+;	move.l	counter1, D0
+										  ;	andi.l	#15, D0
+	move.l #12, D0
 	move.w	D0, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
-
-	move.l #0, D0
+	
+	moveq.l #0, D0
+	move.b $4A000B, D0
+	lsl.w #8, D0
+	move.b $4A000A, D0
+	
 	move.l 	D0, -(SP)
 	pea.l s_WAIT_A_MOMENT
-	move.l	counter1, D0
-	andi.l	#15, D0
+;	move.l	counter1, D0
+										  ;	andi.l	#15, D0
+	move.l #12, D0
 	move.w	D0, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
