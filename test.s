@@ -550,8 +550,9 @@ entry:
 ;	lea	($4,SP),SP
 	
 	moveq.l #6, D6
+	enable_interrupts
 .spin:
-	stop #$3000
+	;stop #$3000
 	bra .spin
 	
 loop:
@@ -588,6 +589,7 @@ vblank_2:
 timer:
 	rte
 vblank:
+	rte
 	
 error:
 	disable_interrupts
@@ -599,7 +601,7 @@ error:
 	pea.l s_ERRBAD
 	move.w	#10, -(SP)
 	jsr logf
-	lea.l	($8,SP),SP
+	lea.l	($4,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	enable_interrupts
 	rte
