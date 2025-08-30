@@ -12,6 +12,7 @@ RAM_BASE = $408000
 cursor = $400042
 pvy = $400040
 counter1 = $400048
+abcd = $400050
 	
 disable_interrupts	macro
 	ori.w #$700, SR
@@ -29,19 +30,24 @@ RESET_SP:
 		dc.l	$41FFFC
 RESET_PC:	
 		dc.l	entry
-
+	
+	dc.l [2]bus_error
+	dc.l inst_error
+		dc.l [5]default_interrupt
+	dc.l [2]inst_error
+	
 		dc.l [($60-*)/4]default_interrupt
 		ORG $60
 SPURIOUS_INT:	
-		dc.l	default_interrupt
-		dc.l 	default_interrupt
+		dc.l	error
+		dc.l 	error
 		dc.l	vblank
 		dc.l	vblank_2
-		dc.l	default_interrupt
+		dc.l	error
 		dc.l	timer
-		dc.l	default_interrupt
-		dc.l	default_interrupt
-		dc.l	default_interrupt
+		dc.l	error
+		dc.l	error
+		dc.l	error
 
 ;;	dc.l [($400-*)/4]nop_rte
 
@@ -499,7 +505,10 @@ s_WAIT_A_MOMENT:
 	ALIGN 2
 
 s_INTMSG
-	dc.b	"GOT INTERRUPT %d!\0"
+	dc.b	"GOT INTERRUPT %08X %08X!\0"
+	ALIGN 2
+s_ERRBAD
+	dc.b	"BAD ERROR %08X!\0"
 	ALIGN 2
 	
 entry:
@@ -580,15 +589,67 @@ timer:
 	rte
 vblank:
 	
-default_interrupt:
+error:
+	disable_interrupts
+	move.l (SP), (abcd)
+	move.l (SP,4), (abcd+4)
+	move.l (SP,8), (abcd+8)
+	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	move.l 	(abcd+8), -(SP)
+	pea.l s_ERRBAD
+	move.w	#10, -(SP)
+	jsr logf
+	lea.l	($8,SP),SP
+	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	enable_interrupts
 	rte
+	
+s_ERR_BUS
+	dc.b	"BUS ERROR! \0"
+	ALIGN 2
+	
+bus_error:
 	disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
-	move.l 	#1, -(SP)
-	pea.l s_INTMSG
+	pea.l s_ERR_BUS
+	move.w	#10, -(SP)
+	jsr logf
+	;lea.l	($0,SP),SP
+	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	enable_interrupts
+	rte
+	
+s_ERR_INST
+	dc.b	"INST ERROR! %08X\0"
+	ALIGN 2
+	
+	nop
+	nop
+	nop
+inst_error:
+	move.l (SP,2), (abcd)
+	disable_interrupts
+	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	move.l 	(abcd), -(SP)
+	pea.l s_ERR_INST
 	move.w	#10, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
+	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	enable_interrupts
+	rte
+	
+default_interrupt:
+	disable_interrupts
+	move.l (SP), (abcd)
+	move.l (SP,4), (abcd+4)
+	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	move.l 	(abcd), -(SP)
+	move.l 	(abcd+4), -(SP)
+	pea.l s_INTMSG
+	move.w	#10, -(SP)
+	jsr logf
+	lea.l	($8,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	enable_interrupts
 	rte
