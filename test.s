@@ -5,26 +5,43 @@
 
 PVT_X = $660018
 PVT_Y = $66001A
+
+FIO_0 = $4a0000
+
+RAM_BASE = $408000
+cursor = $400042
+pvy = $400040
+counter1 = $400048
+	
+disable_interrupts	macro
+	ori.w #$700, SR
+	endm
+	
+enable_interrupts	macro
+	andi.w #(~$700), SR
+	endm
+
+kick_watchdog macro
+	move.b	#0, FIO_0
+	endm
 	
 RESET_SP:	
-		dc.l	$0041fffc
+		dc.l	$41FFFC
 RESET_PC:	
 		dc.l	entry
 
-		dc.l [($60-*)/4]nop_rte
+		dc.l [($60-*)/4]default_interrupt
 		ORG $60
 SPURIOUS_INT:	
-		dc.l	nop_rte
-		dc.l 	nop_rte
+		dc.l	default_interrupt
+		dc.l 	default_interrupt
 		dc.l	vblank
 		dc.l	vblank_2
-		dc.l	nop_rte
-		dc.l	timer
-		dc.l	nop_rte
-AVEC_7:	
-		dc.l	nop_rte
-
-		dc.l	$0
+		dc.l	default_interrupt
+		dc.l	default_interrupt
+		dc.l	default_interrupt
+		dc.l	default_interrupt
+		dc.l	default_interrupt
 
 ;;	dc.l [($400-*)/4]nop_rte
 
@@ -53,10 +70,10 @@ COPYIMM	MACRO	dest, length
 	ENDM
 	
 memcpyl:
-.dest = 8
-.src = .dest+4
-.num = .src+4
-.end = .num+2
+.dest equ.l 8
+.src equ.l .dest+4
+.num equ.w .src+4
+.end equ .num+2
 	link.w	A6,#0
 	movem.l	A1/A0/D1, -(SP)
 	movea.l	(.dest,A6),A0
@@ -128,8 +145,6 @@ logf:
 	unlk	A6
 	rtd #$6
 
-cursor = $400042
-pvy = $400040
 log:
 .strptr = 8
 .color = .strptr+4
@@ -210,9 +225,6 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 		move.l	val2,(A1)+
 		dbf	D0,.fill_loop
 		ENDM
-
-nop_rte:
-		rte
 
 reset_lineram:
 		movem.l	A3/A2/A1/A0/D3/D2/D1/D0, -(SP)
@@ -298,39 +310,6 @@ load_game_font:
 		clr.l	(A1)+
 		dbf	D0,.LAB_00005b9a
 		rts
-
-playfield_scroll_params_reset:
-PF_SCROLL_REGS = $4000d8
-ram_flipscreen = -$7ec2	
-		movem.l	A0, -(SP)
-		lea	(PF_SCROLL_REGS).l,A0
-		tst.w	(ram_flipscreen,A5)
-		bne.w	.flip_scroll_defaults
-		move.w	#-$a00,(A0)+
-		move.w	#-$80,(A0)+
-		move.w	#-$900,(A0)+
-		move.w	#-$c00,(A0)+
-		move.w	#-$800,(A0)+
-		move.w	#-$c00,(A0)+
-		move.w	#-$700,(A0)+
-		move.w	#-$80,(A0)+
-		move.w	#$29,(A0)+
-		move.w	#$18,(A0)+
-		bra.w	.end
-.flip_scroll_defaults:
-		move.w	#-$5a00,(A0)+
-		move.w	#-$7480,(A0)+
-		move.w	#-$5900,(A0)+
-		move.w	#-$8000,(A0)+
-		move.w	#-$5800,(A0)+
-		move.w	#-$8000,(A0)+
-		move.w	#-$5700,(A0)+
-		move.w	#-$7480,(A0)+
-		move.w	#$9e,(A0)+
-		move.w	#$100,(A0)+
-.end:
-		movem.l	(SP)+, A0
-		rts	
 
 PF_0_TILES = $610000
 PF_1_TILES = $612000
@@ -511,15 +490,34 @@ s_WAIT_A_MOMENT:
 	dc.b	"WAIT FOR EVER %d!\0"
 	ALIGN 2
 
-RAM_BASE = $408000
+s_INTMSG
+	dc.b	"GOT INTERRUPT %d!\0"
+	ALIGN 2
+	
 entry:
-	ori #$700, SR
+	disable_interrupts
 	lea (RAM_BASE).l, A5
 	nop
+	move.b #0,$4a0000
+	move.b #255,$4a0006
+	move.b #0,$4a0004
+	move.b #0,$4a0014
+	move.w #$278b,$4c0000
+	move.w #$80,$66001e
+	;;  clear pivot port?
+	lea $621000, A0
+	move.w #$F0, (A0)+
+	move.w #$1000, D0
+	lsr.w #1, D0
+	subq.w #2, D0
+	moveq #0, D1
+.cpp:
+	move.b #0,$4a0000
+	move.w D1, (A0)+
+	dbf D0, .cpp
 	
 	move.l #$61c000, cursor
 	jsr	load_game_font
-	jsr	playfield_scroll_params_reset
 	jsr	reset_text_tilemaps_lineram
 	jsr	reset_spriteram
 	jsr	load_system_palettes
@@ -534,43 +532,43 @@ entry:
 ;	jsr	printf
 ;	lea	($4,SP),SP
 	
-	move #6, D6
+	moveq.l #6, D6
+.spin:
+	stop #$2000
+	bra .spin
 	
-	move.l 	D6, -(SP)
-	pea s_WAIT_A_MOMENT
-	move.l	D6, D0
+loop:
+	move.l 	counter1, -(SP)
+	pea.l s_WAIT_A_MOMENT
+	move.l	counter1, D0
 	andi.l	#15, D0
 	move.w	D0, -(SP)
 	jsr logf
-	lea	($4,SP),SP
-	addq #1, D6
+	lea.l	($4,SP),SP
+	addq.l #1, counter1
+	rts
 	
-ready = $400048
-.loop:
-	andi #$F0FF,SR
-	tst.b	ready
-	beq	.loop
-	move.b #0, ready
-	
-	move.l 	D6, -(SP)
-	pea s_WAIT_A_MOMENT
-	move.l	D6, D0
-	andi.l	#15, D0
-	move.w	D0, -(SP)
-	jsr logf
-	lea	($4,SP),SP
-	addq #1, D6
-	
-	jmp .loop
-
-
-FIO_0 = $4a0000
 vblank:
-	move.b 	#1, ready
-	move.b	#$0, (FIO_0).l
+	disable_interrupts
+	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	kick_watchdog
+	jsr loop
+	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	enable_interrupts
 	rte
 vblank_2:
 	rte	
 timer:
 	rte
 
+default_interrupt:
+	disable_interrupts
+	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	move.l 	#1, -(SP)
+	pea.l s_INTMSG
+	move.w	#10, -(SP)
+	jsr logf
+	lea.l	($4,SP),SP
+	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	enable_interrupts
+	rte
