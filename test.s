@@ -11,7 +11,7 @@ SPRITE_RAM = $600000
 FIO_0 = $4a0000
 
 RAM_BASE = $408000
-cursor = $400042
+cursor = $400044
 pvy = $400040
 counter1 = $400048
 abcd = $400050
@@ -232,54 +232,45 @@ logf:
 	jsr	log
 	unlk	A6
 	rtd #$6
-
+	
+; text ram address format: [...y yyyy yXXX XXX.]
 log:
 .strptr = 8
 .color = .strptr+4
 .end = .color+2
 	disable_interrupts
-	link.w	A6,#$0
+	link.w	A6,#0
 	movem.l	A1/A0/D7/D0, -(SP)
 	movea.l	(.strptr,A6),A0
 	move.w	(.color,A6),D7
 	lsl.w	#1, D7
 	lsl.w	#8, D7
-	move.w	D7, D0
-.loop:
-	move.b	(A0)+,D0
-	beq	.clear_rest
 	move.l (cursor), A1
-	move.w	D0,(A1)+
-	addq.w #2, (cursor+2)
-	;; move to next line if exceeds half
-	addi.w #$0040, (cursor+2)
-	andi.w #$DFBF, (cursor+2)
+.loop:
+	move.b	(A0)+,D7
+	beq	.clear_rest
+	move.w	D7,(A1)+
+	;; move to next line if exceeds 32
+	move.l A1, D0
+	addi.w #$40, D0
+	andi.w #$DFBF, D0
+	move.l D0, A1
 	bra	.loop
 .clear_rest:
-	move.l (cursor), A1
-	move.w	#0, (A1)+
-	move.l A1, (cursor)
-	andi.w #$DFFF, (cursor+2)
+	clr.w (A1)+
 	move.l A1, D0
-	andi.w #$7F, D0
+	andi.w #$DFFF, D0
+	move.l D0, A1
+	bftst D0{(32-1-6):6} 		  ; loop until x is 0
 	bne .clear_rest
 	
-	; [y yyyy yXXX XXX.]
-	;bfextu cursor+2{7:13},D0  how the fuck does bfext work??
-										  ;asr.l #7,D0
-;	stop #$2000						  
-	bfextu (cursor){(32-7-6):6}, D0
-;	bfextu (cursor+2){7:6}, D0
-	lsl.w #3, D0
-	eor.w #$FFFF, D0
-	addi.w #257, D0
+	move.l A1, (cursor)
+;; update scroll
+	move.l A1, D0
+	bfextu D0{(32-7-6):6}, D0 ;extract y coordinate
+	mulu.w #-8, D0					  ;convert to negative pixels
+	addi.w #256, D0 				  ;put it to line 256
 	move.w D0, PVT_Y
-
-;	andi.w #$1F80,D0
-;	eor.w #$FFFF, D0
-;	asr.l #4, D0
-;	addi.w #257, D0
-;	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/D0/A0/A1
 	unlk	A6
