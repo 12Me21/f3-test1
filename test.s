@@ -15,7 +15,11 @@ cursor = $400042
 pvy = $400040
 counter1 = $400048
 abcd = $400050
-
+	
+fixed_bfextu macro source, start, length, dest
+	bfextu source{32-start-length:length}, dest
+	endm
+	
 disable_interrupts	macro
 	ori.w #$700, SR
 	endm
@@ -235,7 +239,7 @@ log:
 .end = .color+2
 	disable_interrupts
 	link.w	A6,#$0
-	movem.l	A1/A0/D7, -(SP)
+	movem.l	A1/A0/D7/D0, -(SP)
 	movea.l	(.strptr,A6),A0
 	move.w	(.color,A6),D7
 	lsl.w	#1, D7
@@ -262,15 +266,22 @@ log:
 	
 	; [y yyyy yXXX XXX.]
 	;bfextu cursor+2{7:13},D0  how the fuck does bfext work??
-							  ;asr.l #7,D0
-	move.w (cursor+2), D0
-	andi.w #$1F80,D0
+										  ;asr.l #7,D0
+;	stop #$2000						  
+	bfextu (cursor){(32-7-6):6}, D0
+;	bfextu (cursor+2){7:6}, D0
+	lsl.w #3, D0
 	eor.w #$FFFF, D0
-	asr.l #4, D0
 	addi.w #257, D0
 	move.w D0, PVT_Y
+
+;	andi.w #$1F80,D0
+;	eor.w #$FFFF, D0
+;	asr.l #4, D0
+;	addi.w #257, D0
+;	move.w D0, PVT_Y
 	
-	movem.l	(SP)+, D7/A0/A1
+	movem.l	(SP)+, D7/D0/A0/A1
 	unlk	A6
 	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
