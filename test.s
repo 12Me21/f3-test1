@@ -250,14 +250,19 @@ log:
 	move.b	(A0)+,D7
 	beq	.clear_rest
 	move.w	D7,(A1)+
-	;; move to next line if exceeds 32
+	;; check for overflow
 	move.l A1, D0
-	addi.w #$40, D0
-	andi.w #$DFBF, D0
+	bfextu	D0{(32-1-6):6}, D0
+	cmpi.w	#10,D0
+	blt	.loop
+	;; if wrapped
+	move.l A1, D0
+	addi.w #$80, D0
+	bfclr	D0{(32-1-6):6}
 	move.l D0, A1
 	bra	.loop
 .clear_rest:
-	clr.w (A1)+
+	move.w #$40, (A1)+
 	move.l A1, D0
 	andi.w #$DFFF, D0
 	move.l D0, A1
