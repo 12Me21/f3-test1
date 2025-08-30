@@ -5,7 +5,8 @@
 
 PVT_X = $660018
 PVT_Y = $66001A
-
+PIVOT_PORT = $621000
+LINERAM = $620000
 FIO_0 = $4a0000
 
 RAM_BASE = $408000
@@ -13,6 +14,7 @@ cursor = $400042
 pvy = $400040
 counter1 = $400048
 abcd = $400050
+
 	
 disable_interrupts	macro
 	ori.w #$700, SR
@@ -315,64 +317,53 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 		move.l	val2,(A1)+
 		dbf	D0,.fill_loop
 		ENDM
-
-reset_lineram:
-		movem.l	A3/A2/A1/A0/D3/D2/D1/D0, -(SP)
-		lea	(lineram_settings_table1,PC),A0
-		lea	($624000).l,A1
-		moveq	#$7,D3
-		moveq	#$0,D0
-		tst.b	(-$7ec2,A5)
-		bne.b	.LAB_00005cf2
-		moveq	#$30,D0
-.LAB_00005cf2:
-		adda.l	D0,A1
-		move.w	D0,(-$7ec0,A5)
-.LAB_00005cf8:
-		move.w	(A0)+,D0
-		bsr.b	memset_231
-		move.w	(A0)+,D0
-		bsr.b	memset_231
-		move.w	(A0)+,D0
-		bsr.b	memset_231
-		move.w	(A0)+,D0
-		bsr.b	memset_231
-		lea	($800,A1),A1
-		dbf	D3,.LAB_00005cf8
-		lea	($620000).l,A1
-		moveq	#$7,D3
-		move.l	#$624000,D0
-		lsr.l	#$8,D0
-		lsr.l	#$4,D0
-		lsl.l	#$8,D0
-		lsl.l	#$2,D0
-		addi.w	#$f,D0
-		andi.w	#$7fff,D0
-.LAB_00005d2e:
-		move.w	#$ff,D1
-.LAB_00005d32:
-		move.w	D0,(A1)+
-		dbf	D1,.LAB_00005d32
-		ror.l	#$4,D2
-		addi.w	#$400,D0
-		dbf	D3,.LAB_00005d2e
-		tst.w	(-$7ec2,A5)
-		bne.w	.LAB_00005d56
-		move.w	#$800,($626000).l
-		bra.w	.LAB_00005d5e
-.LAB_00005d56:
-		move.w	#$800,($6261fe).l
-.LAB_00005d5e:
-		movem.l	(SP)+, D0/D1/D2/D3/A0/A1/A2/A3
-		rts	
+	;; [pppp pppp aaaa mmmm]
+	;; p - address
+	;; a - latch alternate
+	;; m - latch normal
 	
-memset_231:
-		move.w	#$e7,D1
-.loop:
-		move.w	D0,(A1)+
-		dbf	D1,.loop
-		lea	($30,A1),A1
-		rts
+
+setup_lineram:
+	lea .defaults, A1
+	lea LINERAM, A0
+	move.l #($1000-$400), D4
+	moveq	#7, D2
+.loop1:
+	addi.w #$40F, D4
+	move.l #255, D1
+.loop2:
+	move.w D4, (A0)+
+	move.b #$00, D4
+	dbf D1, .loop2
+	
+	;; put the value
+	lea $620000, A3
+	move.w D4, D3
+	lsl.w #2, D3
+	adda.w D3, A3
+	
+	move.w (A1)+, (A3)
+	adda.w #$200, A3
+	move.w (A1)+, (A3)
+	adda.w #$200, A3
+	move.w (A1)+, (A3)
+	adda.w #$200, A3
+	move.w (A1)+, (A3)
+	adda.w #$200, A3
+	
+	;; 
+	dbf D2, .loop1
+	rts
+	
+.defaults:
+	dc.w 0,0,0,0
+	dc.w 0,0,0,0
+	dc.w $02FF, $BDB9, $7000, $0037
+	dc.w $0001, $300F, $0300, $7DDD
+	dc.w $0080, $0080, $0080, $0080
+	dc.w $0000, $0000, $0000, $0000
+	dc.w $003F, $003F, $003F, $003F
+	dc.w $100B, $1009, $1003, $1001
 	
 lineram_settings_table1:
 		dc.w $0000,$0000,$0000,$0000
@@ -421,65 +412,7 @@ reset_pivot:
 	move.w	D1,PVT_X
 	movem.l	(SP)+, D0/D1/A0
 	rts	
-reset_tilemap_0:
-		movem.l	A1/A0/D1/D0, -(SP)
-		moveq	#$0,D1
-		FILL_L (PF_0_TILES).l, #$7ff, D1
-		FILL_L (lr_rowscroll(0)).l, #$ff, D1
-		move.l	D1,(-$7f12,A5)
-		move.l	D1,(-$7f0e,A5)
-		move.l	D1,(-$7eea,A5)
-		move.l	D1,(-$7ee6,A5)
-		movem.l	(SP)+, D0/D1/A0/A1
-		rts
-reset_tilemap_1:
-		movem.l	A1/A0/D1/D0, -(SP)
-		moveq	#$0,D1
-		FILL_L (PF_1_TILES).l, #$7ff, D1
-		FILL_L (lr_rowscroll(1)).l, #$ff, D1
-		move.l	D1,(-$7f0a,A5)
-		move.l	D1,(-$7f06,A5)
-		move.l	D1,(-$7ee2,A5)
-		move.l	D1,(-$7ede,A5)
-		movem.l	(SP)+, D0/D1/A0/A1
-		rts
-reset_tilemap_2:
-		movem.l	A1/A0/D2/D1/D0, -(SP)
-		moveq	#$0,D1
-		FILL_L (PF_2_TILES).l, #$7ff, D1
-		FILL_L (lr_rowscroll(2)).l, #$ff, D1
-		move.w	#$80,D1
-		moveq	#$0,D2
-		FILL_L2	(lr_scale(2)).l, (lr_colscroll(2)).l, #$ff, D1, D2
-		move.l	D2,(-$7f02,A5)
-		move.l	D2,(-$7efe,A5)
-		move.l	D2,(-$7eda,A5)
-		move.l	D2,(-$7ed6,A5)
-		movem.l	(SP)+, D0/D1/D2/A0/A1
-		rts
-reset_tilemap_3:
-		movem.l	A1/A0/D2/D1/D0, -(SP)
-		moveq	#$0,D1
-		FILL_L (PF_3_TILES).l, #$7ff, D1
-		FILL_L (lr_rowscroll(3)).l, #$ff, D1
-		move.w	#$80,D1
-		moveq	#$0,D2
-		FILL_L2	(lr_scale(3)).l, (lr_colscroll(3)).l, #$ff, D1, D2
-		move.l	D2,(-$7efa,A5)
-		move.l	D2,(-$7ef6,A5)
-		move.l	D2,(-$7ed2,A5)
-		move.l	D2,(-$7ece,A5)
-		movem.l	(SP)+, D0/D1/D2/A0/A1
-		rts
 
-reset_text_tilemaps_lineram:
-		jsr	reset_pivot
-		jsr	reset_tilemap_0
-		jsr	reset_tilemap_1
-		jsr	reset_tilemap_2
-		jsr	reset_tilemap_3
-		jsr	reset_lineram
-		rts
 
 SPRITERAM_TOP = $600000
 SPRITERAM_BODY = $600010
@@ -587,14 +520,17 @@ entry:
 	disable_interrupts
 	lea (RAM_BASE).l, A5
 	nop
+	; setup fio
 	move.b #0,$4a0000
 	move.b #255,$4a0006
 	move.b #0,$4a0004
 	move.b #0,$4a0014
+	; interrupt timer disable
 	move.w #$0000,$4c0000
+	; pf control
 	move.w #$80,$66001e
 	;;  clear pivot port?
-	lea $621000, A0
+	lea PIVOT_PORT, A0
 	move.w #$F0, (A0)+
 	move.w #$1000, D0
 	lsr.w #1, D0
@@ -606,10 +542,12 @@ entry:
 	dbf D0, .cpp
 	
 	move.l #$61c000, cursor
+	jsr	setup_lineram
 	jsr	load_game_font
-	jsr	reset_text_tilemaps_lineram
-	jsr	reset_spriteram
 	jsr	load_system_palettes
+	jsr	reset_pivot
+	jsr	reset_spriteram
+	
 	;; jsr	clear_shared_ram_
 	;; jsr	Z_reset_3FF_3FE_E0_1_FF
 	;; jsr	coin_exchange_rate_init_
