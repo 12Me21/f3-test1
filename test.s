@@ -257,7 +257,7 @@ log:
 	blt	.loop
 	;; if wrapped
 	move.l A1, D0
-	addi.w #$80, D0
+	addi.w #(1<<6+1), D0
 	bfclr	D0{(32-1-6):6}
 	move.l D0, A1
 	bra	.loop
