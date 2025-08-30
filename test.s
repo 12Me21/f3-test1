@@ -2,7 +2,7 @@
 		SUPMODE ON
 		PADDING OFF
 		ORG $000000
-
+COLS = 39
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
@@ -253,15 +253,20 @@ log:
 	;; check for overflow
 	move.l A1, D0
 	bfextu	D0{(32-1-6):6}, D0
-	cmpi.w	#10,D0
+	cmpi.w	#COLS,D0
 	blt	.loop
-	;; if wrapped
+	;; if needs to wrap:
+.clear:
+	move.w #$40, (A1)+
 	move.l A1, D0
-	addi.w #(1<<6+1), D0
-	bfclr	D0{(32-1-6):6}
+	andi.w #$DFFF, D0
 	move.l D0, A1
-	bra	.loop
+	bftst D0{(32-1-6):6} 		  ; loop until x is 0
+	bne .clear
+	bra .loop
+
 .clear_rest:
+	;;  ugh repeat
 	move.w #$40, (A1)+
 	move.l A1, D0
 	andi.w #$DFFF, D0
@@ -334,7 +339,7 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 	
 setup_scroll:	
 	move.w	#24,PVT_Y
-	move.w	#(42+(40-32)/2*8),PVT_X
+	move.w	#(41+(40-COLS)*8/2),PVT_X
 	rts
 	
 setup_pivot_port:
