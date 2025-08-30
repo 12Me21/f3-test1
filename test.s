@@ -250,29 +250,20 @@ log:
 	move.b	(A0)+,D7
 	beq	.clear_rest
 	move.w	D7,(A1)+
-	;; check for overflow
+	;; check if at end of line
 	move.l A1, D0
 	bfextu	D0{(32-1-6):6}, D0
 	cmpi.w	#COLS,D0
 	blt	.loop
-	;; if needs to wrap:
-.clear:
-	move.w #$40, (A1)+
-	move.l A1, D0
-	andi.w #$DFFF, D0
-	move.l D0, A1
-	bftst D0{(32-1-6):6} 		  ; loop until x is 0
-	bne .clear
-	bra .loop
-
 .clear_rest:
-	;;  ugh repeat
 	move.w #$40, (A1)+
 	move.l A1, D0
 	andi.w #$DFFF, D0
 	move.l D0, A1
 	bftst D0{(32-1-6):6} 		  ; loop until x is 0
 	bne .clear_rest
+	tst.b D7
+	bne .loop
 	
 	move.l A1, (cursor)
 ;; update scroll
