@@ -27,31 +27,96 @@ kick_watchdog macro
 	endm
 	
 RESET_SP:	
-		dc.l	$41FFFC
+	dc.l	$41FFFC
 RESET_PC:	
-		dc.l	entry
-	
-	dc.l [2]bus_error
+	dc.l	entry
+	org $8
+	dc.l [2]ex_access
+	org $10
 	dc.l inst_error
-		dc.l [5]default_interrupt
-	dc.l [2]inst_error
-	
-		dc.l [($60-*)/4]default_interrupt
-		ORG $60
-SPURIOUS_INT:	
-		dc.l	error
-		dc.l 	error
-		dc.l	vblank
-		dc.l	vblank_2
-		dc.l	error
-		dc.l	timer
-		dc.l	error
-		dc.l	error
-		dc.l	error
+	org $14
+	dc.l [5]default_interrupt
+	org $28
+	dc.l ex_a_line
+	dc.l ex_f_line
+	dc.l [($60-*)/4]default_interrupt
+	ORG $60
+	dc.l	error
+	dc.l 	error
+	dc.l	vblank
+	dc.l	vblank_2
+	dc.l	error
+	dc.l	timer
+	dc.l	error
+	dc.l	error
+	dc.l	error
 
 ;;	dc.l [($400-*)/4]nop_rte
 
 	ORG	$400
+spin:
+	stop #$2000
+	;dc.w $8AFA
+	bra spin
+	
+print_ex_stack:
+	move.w (SP,4+0), (abcd+2)
+	move.l (SP,4+2), (abcd+4)
+	move.l (SP,4+6), (abcd+8)
+	disable_interrupts
+	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	move.l #0, D0
+	move.w (abcd+10),D0
+	move.l 	D0, -(SP)
+	move.l 	(abcd+4), -(SP)
+	move.w (abcd+2),D0
+	move.l D0, -(SP)
+	pea.l .msg
+	move.w	#10, -(SP)
+	jsr logf
+	lea.l	(4*3,SP),SP
+	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	rts
+.msg:
+	dc.b	"ex: SR:%04X @:%08X %04X\0"
+	align 2
+	
+	
+ex_access:	
+	disable_interrupts
+	pea.l .msg
+	move.w	#10, -(SP)
+	jsr logf
+	jsr print_ex_stack
+	enable_interrupts
+	rte
+.msg:
+	dc.b	"mem error!\0"
+	ALIGN 2
+	
+ex_a_line:
+	disable_interrupts
+	pea.l .msg
+	move.w	#10, -(SP)
+	jsr logf
+	jsr print_ex_stack
+	enable_interrupts
+	rte
+.msg:
+	dc.b	"A-LINE ERROR!\0"
+	ALIGN 2
+	
+ex_f_line:
+	disable_interrupts
+	pea.l .msg
+	move.w	#10, -(SP)
+	jsr logf
+	jsr print_ex_stack
+	enable_interrupts
+	rte
+.msg:
+	dc.b	"F-LINE ERROR!\0"
+	ALIGN 2
 	
 	;; A0: dest
 	;; D1: count (bytes)
@@ -74,6 +139,17 @@ COPYIMM	MACRO	dest, length
 	move	length, D1
 	jsr	copyimm
 	ENDM
+	
+skip_str_imm:						  ;temp
+	movea.l	(SP), A2
+.loop:
+	tst.b	(A2)+
+	bne	.loop
+	addq.w	#1,	A2
+	move.l A2, D7
+	bclr.l	#0, D7
+	move.l D7,(SP)
+	rts
 	
 memcpyl:
 .dest equ.l 8
@@ -191,7 +267,7 @@ log:
 	
 	movem.l	(SP)+, D7/A0/A1
 	unlk	A6
-	enable_interrupts
+	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
 
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -500,10 +576,6 @@ palettes:
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	
-s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER %d!\0"
-	ALIGN 2
-
 s_INTMSG
 	dc.b	"GOT INTERRUPT %08X %08X!\0"
 	ALIGN 2
@@ -551,9 +623,11 @@ entry:
 	
 	moveq.l #6, D6
 	enable_interrupts
-.spin:
-	;stop #$3000
-	bra .spin
+	bra spin
+	
+s_WAIT_A_MOMENT:
+	dc.b	"WAIT FOR EVER %d!\0"
+	ALIGN 2
 	
 loop:
 	move.l SP, D0
@@ -583,6 +657,7 @@ vblank_2:
 	kick_watchdog
 	jsr loop
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	jsr print_ex_stack
 	enable_interrupts
 	rte
 
@@ -606,40 +681,23 @@ error:
 	enable_interrupts
 	rte
 	
-s_ERR_BUS
-	dc.b	"BUS ERROR! \0"
-	ALIGN 2
-	
-bus_error:
-	disable_interrupts
-	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
-	pea.l s_ERR_BUS
-	move.w	#10, -(SP)
-	jsr logf
-	;lea.l	($0,SP),SP
-	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
-	enable_interrupts
-	rte
-	
-s_ERR_INST
-	dc.b	"INST ERROR! %08X\0"
-	ALIGN 2
-	
-	nop
-	nop
-	nop
 inst_error:
 	move.l (SP,2), (abcd)
 	disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l 	(abcd), -(SP)
-	pea.l s_ERR_INST
+	pea.l .msg
 	move.w	#10, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	jsr print_ex_stack
 	enable_interrupts
 	rte
+.msg:
+	dc.b	"INST ERROR! %08X\0"
+	ALIGN 2
+	
 	
 default_interrupt:
 	disable_interrupts
