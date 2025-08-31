@@ -668,24 +668,25 @@ loop:
 	move.w edit, D2
 	btst #2, D1
 	bne .n1
-	addi.w #1,D2
+	subi.w #1,D2
 .n1:
 	btst #3, D1
 	bne .n2
-	subi.w #1,D2
+	addi.w #1,D2
 .n2:
-	andi.w #3,D2
+	andi.w #7,D2
 	move.w D2,edit
-	beq .n4 							  ;dont let edit 0
 	;; 
-	
+	moveq.l #1,D0
+	lsl.l #2,D2
+	lsl.l D2,D0
 	btst #0, D1
 	bne .n3
-	subi.w #1,(edit_addr-1,D2)
+	subi.l D0,(edit_addr)
 .n3:
 	btst #1, D1
 	bne .n4
-	addi.w #1,(edit_addr-1,D2)
+	addi.l D0,(edit_addr)
 .n4:
 	
 	rts
