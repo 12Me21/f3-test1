@@ -7,6 +7,7 @@ COLS = 39
 status_height = 2
 row_delta = $80
 cursor_domain = $DFFF
+TEXT_RAM = $61C000
 	
 PVT_X = $660018
 PVT_Y = $66001A
@@ -250,31 +251,17 @@ logf:
 	;; A1,D1 - used
 log_newline:
 	;; move to next line and clear it
-	nop
-	nop
-	nop
-;	andi.w #(~$7F),D0
-	;move.l #-1, D0
-	dc.w	$ECC0, $0646
-	;bftst 1110 1000 11 ...
-	;bfclr 1110 1100 11 ...
-	
-	;bfclr	D0{(32-1-6):6} 		  ; carriage return
-	;bftst	D0{(32-1-6):6} 		  ; carriage return
-	nop
-	nop
-	nop
-	nop
+	bfclr	D0{32-1-6:6} 		  ; carriage return
 	addi.w #row_delta, D0		  ; line feed
 	andi.w #cursor_domain, D0
 	move.l D0, A1
 	move.l #(COLS-1), D1
 .loop1:
-	move.w #$40, (A1)+
+	clr.w (A1)+
 	dbf	D1, .loop1
 	rts
-
-; text ram address format: [...y yyyy yXXX XXX.]
+	
+; text ram address format: [110y yyyy yXXX XXX0]
 log:
 .strptr = 8
 .end = .strptr+4
@@ -291,12 +278,12 @@ log:
 	bgt .putch
 	;; control
 	move.b	(A0)+,D7
-	bfins D7, D7{(32-9-4):4}
+	bfins D7, D7{32-9-4:4}
 	bra	.loop
 .putch:
 	;; check if at end of line
 	move.l A1, D0
-	bfextu	D0{(32-1-6):6}, D1  ;get x
+	bfextu	D0{32-1-6:6}, D1  ;get x
 	cmpi.w	#COLS,D1
 	blt	.ok1
 	jsr	log_newline
@@ -307,16 +294,16 @@ log:
 
 .finished:
 	move.l A1, D0
-	jsr	log_newline
+	;jsr	log_newline
 	move.l D0, A1
 	
 	move.l A1, (cursor)
 
 ;; update scroll
 	move.l A1, D0
-	bfextu D0{(32-7-6):6}, D0 ;extract y coordinate
+	bfextu D0{32-7-6:6}, D0 ;extract y coordinate
 	mulu.w #-8, D0	;convert to negative pixels
-	addi.w #(256-(status_height*8)), D0 				  ;put it to line 256
+	addi.w #(256-8-(status_height*8)), D0 				  ;put it to line 256
 	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/D1/D0/A0/A1
@@ -329,31 +316,26 @@ drop macro amt
 	endm
 	
 status_bar:
-	rts
 	disable_interrupts
 	move.l (cursor), D0
+	bfclr D0{32-1-6:6}
 	addi.w #row_delta, D0
 	andi.w #cursor_domain, D0
 	move.l D0, A1
-	addi.w #(row_delta*status_height), D0
-	andi.w #cursor_domain, D0
-	move.l D0, A2
+	move.l #(1*row_delta/2-1), D1
+.loop:
+	move.w #$40, (A1)+
+	dbf D1, .loop
+
+	move.l D0, A1
 
 	move.l (vblank_pc),-(SP)
 	move.l (counter1),-(SP)
 	pea .msg
-	move.w #10, -(SP)
+	move.w #11, -(SP)
 	move.l A1, -(SP)
 	jsr printf
 	drop 8
-	move.l D0, A1
-.clear_rest:
-	move.w #$40, (A1)+
-	move.l A1, D0
-	andi.w #cursor_domain, D0
-	move.l D0, A1
-	cmpa.l A1, A2
-	bgt .clear_rest
 	enable_interrupts
 	rts
 .msg:
@@ -594,7 +576,7 @@ entry:
 	disable_interrupts
 	lea (RAM_BASE).l, A5
 	nop
-	move.l #$61c000, cursor
+	move.l #TEXT_RAM, cursor
 	
 	; setup fio
 	move.b #0,$4a0000
