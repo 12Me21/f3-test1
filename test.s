@@ -5,7 +5,9 @@
 	
 COLS = 39
 status_height = 2
-
+row_delta = $80
+cursor_domain = $DFFF
+	
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
@@ -244,50 +246,80 @@ logf:
 	unlk	A6
 	rtd #$4
 	
+	;; D0 - input/output
+	;; A1,D1 - used
+log_newline:
+	;; move to next line and clear it
+	nop
+	nop
+	nop
+;	andi.w #(~$7F),D0
+	;move.l #-1, D0
+	dc.w	$ECC0, $0646
+	;bftst 1110 1000 11 ...
+	;bfclr 1110 1100 11 ...
+	
+	;bfclr	D0{(32-1-6):6} 		  ; carriage return
+	;bftst	D0{(32-1-6):6} 		  ; carriage return
+	nop
+	nop
+	nop
+	nop
+	addi.w #row_delta, D0		  ; line feed
+	andi.w #cursor_domain, D0
+	move.l D0, A1
+	move.l #(COLS-1), D1
+.loop1:
+	move.w #$40, (A1)+
+	dbf	D1, .loop1
+	rts
+
 ; text ram address format: [...y yyyy yXXX XXX.]
 log:
 .strptr = 8
 .end = .strptr+4
 	disable_interrupts
 	link.w	A6,#0
-	movem.l	A1/A0/D7/D0, -(SP)
+	movem.l	A1/A0/D7/D1/D0, -(SP)
 	movea.l	(.strptr,A6),A0
 	move #(10<<1<<8), D7
 	move.l (cursor), A1
 .loop:
+	;; read a char
 	move.b	(A0)+,D7
-	bgt   .ok
-	beq	.clear_rest
+	beq .finished
+	bgt .putch
 	;; control
 	move.b	(A0)+,D7
 	bfins D7, D7{(32-9-4):4}
 	bra	.loop
-.ok:
-	move.w	D7,(A1)+
+.putch:
 	;; check if at end of line
 	move.l A1, D0
-	bfextu	D0{(32-1-6):6}, D0
-	cmpi.w	#COLS,D0
-	blt	.loop
-.clear_rest:
-	clr.w (A1)+
-	move.l A1, D0
-	andi.w #$DFFF, D0
+	bfextu	D0{(32-1-6):6}, D1  ;get x
+	cmpi.w	#COLS,D1
+	blt	.ok1
+	jsr	log_newline
 	move.l D0, A1
-	bftst D0{(32-1-6):6} 		  ; loop until x is 0
-	bne .clear_rest
-	tst.b D7
-	bne .loop
+.ok1:
+	move.w	D7,(A1)+
+	bra	.loop
+
+.finished:
+	move.l A1, D0
+	jsr	log_newline
+	move.l D0, A1
 	
 	move.l A1, (cursor)
+
 ;; update scroll
 	move.l A1, D0
 	bfextu D0{(32-7-6):6}, D0 ;extract y coordinate
-	mulu.w #-8, D0					  ;convert to negative pixels
+	mulu.w #-8, D0	;convert to negative pixels
 	addi.w #(256-(status_height*8)), D0 				  ;put it to line 256
 	move.w D0, PVT_Y
 	
-	movem.l	(SP)+, D7/D0/A0/A1
+	movem.l	(SP)+, D7/D1/D0/A0/A1
 	unlk	A6
 	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
@@ -297,13 +329,14 @@ drop macro amt
 	endm
 	
 status_bar:
+	rts
 	disable_interrupts
 	move.l (cursor), D0
-	addi.w #($80), D0
-	andi.w #$DFFF, D0
+	addi.w #row_delta, D0
+	andi.w #cursor_domain, D0
 	move.l D0, A1
-	addi.w #($80*status_height), D0
-	andi.w #$DFFF, D0
+	addi.w #(row_delta*status_height), D0
+	andi.w #cursor_domain, D0
 	move.l D0, A2
 
 	move.l (vblank_pc),-(SP)
@@ -317,7 +350,7 @@ status_bar:
 .clear_rest:
 	move.w #$40, (A1)+
 	move.l A1, D0
-	andi.w #$DFFF, D0
+	andi.w #cursor_domain, D0
 	move.l D0, A1
 	cmpa.l A1, A2
 	bgt .clear_rest
