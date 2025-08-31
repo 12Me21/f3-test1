@@ -688,8 +688,21 @@ loop:
 	bne .n4
 	addi.l D0,(edit_addr)
 .n4:
+	;; 
+	btst #8, D1
+	bne .n5
+	move.l edit_addr, A0
+	move.l (A0), -(SP)
+	move.l A0, -(SP)
+	pea.l .mem_report
+	jsr logf
+	drop 4*2
+.n5:
 	
 	rts
+.mem_report:
+	dc.s "[%6X] is %08X\0"
+	align 2
 	
 vblank:
 	disable_interrupts
