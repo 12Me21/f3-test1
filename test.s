@@ -248,7 +248,14 @@ log:
 	move.l (cursor), A1
 .loop:
 	move.b	(A0)+,D7
+	bgt   .ok
 	beq	.clear_rest
+	;; control
+	move.b	(A0)+,D7
+	lsl.w	#1, D7
+	lsl.w	#8, D7
+	bra	.loop
+.ok:
 	move.w	D7,(A1)+
 	;; check if at end of line
 	move.l A1, D0
@@ -539,16 +546,18 @@ entry:
 	bra spin
 	
 s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER -------------------------X %X!\0"
+	dc.b	"WAIT FOR EVER %X -- \xFF\x10 HI!\0"
 	ALIGN 2
 	
+s_frame:	
+	dc.b	"FRAME:\xFF\x02%d\0"
+	align 2
+	
 loop:
-	move.l SP, D0
+	move.l counter1, D0
 	move.l 	D0, -(SP)
-	pea.l s_WAIT_A_MOMENT
-;	move.l	counter1, D0
-										  ;	andi.l	#15, D0
-	move.l #12, D0
+	pea.l s_frame
+	move.l #4, D0
 	move.w	D0, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
