@@ -184,14 +184,14 @@ sprintf:
 	
 ;;; print string on stack
 print_str:
-strptr = $8
-textram_loc = $c
-color = $10
+.strptr = 8
+.dest = .strptr+4
+.color = .dest+4
 		link.w	A6,#$0
 		movem.l	A1/A0/D7, -(SP)
-		movea.l	(strptr,A6),A0
-		movea.l	(textram_loc,A6),A1
-		move.w	(color,A6),D7
+		movea.l	(.strptr,A6),A0
+		movea.l	(.dest,A6),A1
+		move.w	(.color,A6),D7
 		add.w		D7,D7
 .loop:
 		move.b	(A0)+,D0
@@ -206,26 +206,34 @@ color = $10
 		rtd #$A
 
 printf:
-	link.w	A6,#-$40
-	pea	($12,A6)
-	move.l	($e,A6),-(SP)
-	pea	(-$40,A6)
+.dest = 8
+.color = .dest+4
+.format = .color+2
+.rest = .format+4
+.buffer = -$40
+	link.w	A6,#.buffer
+	pea	(.rest,A6)
+	move.l	(.format,A6),-(SP)
+	pea	(.buffer,A6)
 	jsr	sprintf
-	move.w	($c,A6),-(SP)
-	move.l	($8,A6),-(SP)
-	pea	(-$40,A6)
+	move.w	(.color,A6),-(SP)
+	move.l	(.dest,A6),-(SP)
+	pea	(.buffer,A6)
 	jsr	print_str
 	unlk	A6
 	rtd #$A
 	
 logf:
-	link.w	A6,#-$80
-	pea	($c,A6)
-	move.l	($8,A6),-(SP)
-	pea	(-$80,A6)
+.format = 8
+.rest = .format+4	
+.buffer = -$80
+	link.w	A6,#.buffer
+	pea	(.rest,A6)
+	move.l	(.format,A6),-(SP)
+	pea	(.buffer,A6)
 	jsr	sprintf
-	move.w	($8,A6),-(SP)
-	pea	(-$80,A6)
+	move.w	(.format,A6),-(SP)
+	pea	(.buffer,A6)
 	jsr	log
 	unlk	A6
 	rtd #$4
@@ -270,7 +278,7 @@ log:
 	move.l A1, D0
 	bfextu D0{(32-7-6):6}, D0 ;extract y coordinate
 	mulu.w #-8, D0					  ;convert to negative pixels
-	addi.w #256, D0 				  ;put it to line 256
+	addi.w #(256-8), D0 				  ;put it to line 256
 	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/D0/A0/A1
@@ -278,6 +286,29 @@ log:
 	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
 
+	
+status_bar:	
+	move.l (cursor), D0
+	addi.w #$80, D0
+	andi.w #$DFFF, D0
+	move.l D0, A1
+	pea .msg
+	move.w #10, -(SP)
+	move.l A1, -(SP)
+	jsr printf
+	move.l D0, A1
+.clear_rest:
+	move.w #$40, (A1)+
+	move.l A1, D0
+	andi.w #$DFFF, D0
+	move.l D0, A1
+	bftst D0{(32-1-6):6} 		  ; loop until x is 0
+	bne .clear_rest
+	rts
+.msg:
+	dc.b "STATUS TEST\0"
+	align 2
+	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
 PRINT	MACRO charptr,x,y,color
 		move.w 	color,-(SP)
@@ -569,6 +600,9 @@ loop:
 	lea.l	($8,SP),SP
 	
 	addq.l #1, counter1
+	
+	jsr status_bar
+	
 	rts
 	
 vblank:
