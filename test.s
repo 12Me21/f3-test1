@@ -2,7 +2,10 @@
 		SUPMODE ON
 		PADDING OFF
 		ORG $000000
+	
 COLS = 39
+status_height = 2
+
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
@@ -15,7 +18,10 @@ cursor = $400044
 pvy = $400040
 counter1 = $400048
 abcd = $400050
-	
+vblank_pc = $400100
+
+
+
 fixed_bfextu macro source, start, length, dest
 	bfextu source{32-start-length:length}, dest
 	endm
@@ -278,35 +284,47 @@ log:
 	move.l A1, D0
 	bfextu D0{(32-7-6):6}, D0 ;extract y coordinate
 	mulu.w #-8, D0					  ;convert to negative pixels
-	addi.w #(256-8), D0 				  ;put it to line 256
+	addi.w #(256-(status_height*8)), D0 				  ;put it to line 256
 	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/D0/A0/A1
 	unlk	A6
 	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
-
 	
-status_bar:	
+drop macro amt
+	lea.l	(amt,SP),SP
+	endm
+	
+status_bar:
+	disable_interrupts
 	move.l (cursor), D0
-	addi.w #$80, D0
+	addi.w #($80), D0
 	andi.w #$DFFF, D0
 	move.l D0, A1
+	addi.w #($80*status_height), D0
+	andi.w #$DFFF, D0
+	move.l D0, A2
+
+	move.l (vblank_pc),-(SP)
+	move.l (counter1),-(SP)
 	pea .msg
 	move.w #10, -(SP)
 	move.l A1, -(SP)
 	jsr printf
+	drop 8
 	move.l D0, A1
 .clear_rest:
 	move.w #$40, (A1)+
 	move.l A1, D0
 	andi.w #$DFFF, D0
 	move.l D0, A1
-	bftst D0{(32-1-6):6} 		  ; loop until x is 0
-	bne .clear_rest
+	cmpa.l A1, A2
+	bgt .clear_rest
+	enable_interrupts
 	rts
 .msg:
-	dc.b "STATUS TEST\0"
+	dc.b "f%d @%X\0"
 	align 2
 	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -581,23 +599,23 @@ s_frame:
 	align 2
 	
 loop:
-	move.l counter1, D0
-	move.l 	D0, -(SP)
-	move.l 	#4, -(SP)
-	pea.l s_frame
-	jsr logf
-	lea.l	($8,SP),SP
+	;move.l counter1, D0
+	;move.l 	D0, -(SP)
+	;move.l 	#4, -(SP)
+	;pea.l s_frame
+	;jsr logf
+	;lea.l	($8,SP),SP
 	
-	moveq.l #0, D0
-	move.b $4A000B, D0
-	lsl.w #8, D0
-	move.b $4A000A, D0
+	;moveq.l #0, D0
+	;move.b $4A000B, D0
+	;lsl.w #8, D0
+	;move.b $4A000A, D0
 	
-	move.l 	D0, -(SP)
-	move.l 	D0, -(SP)
-	pea.l s_WAIT_A_MOMENT
-	jsr logf
-	lea.l	($8,SP),SP
+	;move.l 	D0, -(SP)
+	;move.l 	D0, -(SP)
+	;pea.l s_WAIT_A_MOMENT
+	;jsr logf
+	;lea.l	($8,SP),SP
 	
 	addq.l #1, counter1
 	
@@ -611,6 +629,7 @@ vblank:
 	kick_watchdog
 	jsr loop
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
+	move.l (SP,2), (vblank_pc)
 	jsr print_ex_stack
 	enable_interrupts
 	rte
