@@ -196,23 +196,19 @@ print_str:
 .strptr = 8
 .dest = .strptr+4
 .color = .dest+4
-		link.w	A6,#$0
-		movem.l	A1/A0/D7, -(SP)
-		movea.l	(.strptr,A6),A0
-		movea.l	(.dest,A6),A1
-		move.w	(.color,A6),D7
-		add.w		D7,D7
+	link.w	A6,#$0
+	movem.l	A1/A0/D7/D1/D0, -(SP)
+	movea.l	(.strptr,A6),A0
+	movea.l	(.dest,A6),A1
+	move.w	(.color,A6),D7
+	bfins D7, D7{32-9-4:4}
 .loop:
-		move.b	(A0)+,D0
-		beq	.retn
-		move.b	D7,(A1)+
-		move.b	D0,(A1)+
-		bra	.loop
-.retn:
-		move.l	A1,D0
-		movem.l	(SP)+, D7/A0/A1
-		unlk	A6
-		rtd #$A
+	jsr procchar
+	bne .loop
+	move.l	A1,D0
+	movem.l	(SP)+, D0/D1/D7/A0/A1
+	unlk	A6
+	rtd #$A
 
 printf:
 .dest = 8
@@ -247,7 +243,7 @@ logf:
 	unlk	A6
 	rtd #$4
 	
-	;; D0 - input/output
+	;; D0 - dest (modified) - todo: would be nice if this was A1
 	;; A1,D1 - used
 log_newline:
 	;; move to next line and clear it
@@ -261,6 +257,33 @@ log_newline:
 	dbf	D1, .loop1
 	rts
 	
+	;; D7 - attrs (modified)
+	;; A0 - source (modified)
+	;; A1 - dest (modified)
+	;; D0, D1 - used
+	;; flags: zero if we read a terminator
+procchar:
+	;; read a char
+	move.b	(A0)+,D7
+	beq .ret
+	bgt .putch
+	;; control
+	move.b	(A0)+,D7
+	bfins D7, D7{32-9-4:4}
+	rts
+.putch:
+	;; check if at end of line
+	move.l A1, D0
+	bfextu	D0{32-1-6:6}, D1  ;get x
+	cmpi.w	#COLS,D1
+	blt	.ok1
+	jsr	log_newline
+	move.l D0, A1
+.ok1:
+	move.w	D7,(A1)+
+.ret:
+	rts
+	
 ; text ram address format: [110y yyyy yXXX XXX0]
 log:
 .strptr = 8
@@ -272,38 +295,18 @@ log:
 	move #(10<<1<<8), D7
 	move.l (cursor), A1
 .loop:
-	;; read a char
-	move.b	(A0)+,D7
-	beq .finished
-	bgt .putch
-	;; control
-	move.b	(A0)+,D7
-	bfins D7, D7{32-9-4:4}
-	bra	.loop
-.putch:
-	;; check if at end of line
-	move.l A1, D0
-	bfextu	D0{32-1-6:6}, D1  ;get x
-	cmpi.w	#COLS,D1
-	blt	.ok1
-	jsr	log_newline
-	move.l D0, A1
-.ok1:
-	move.w	D7,(A1)+
-	bra	.loop
+	jsr procchar
+	bne .loop
 
 .finished:
-	move.l A1, D0
-	;jsr	log_newline
-	move.l D0, A1
-	
+;	move.w #$0601,(A1)
 	move.l A1, (cursor)
 
-;; update scroll
+;; scroll so that cursor is at a particular line
 	move.l A1, D0
 	bfextu D0{32-7-6:6}, D0 ;extract y coordinate
 	mulu.w #-8, D0	;convert to negative pixels
-	addi.w #(256-(status_height*8)), D0 				  ;put it to line 256
+	addi.w #(256-8-(status_height*8)), D0 				  ;put it to line 256
 	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/D1/D0/A0/A1
@@ -318,28 +321,23 @@ drop macro amt
 status_bar:
 	disable_interrupts
 	move.l (cursor), D0
-	bfclr D0{32-1-6:6}
-	addi.w #row_delta, D0
-	andi.w #cursor_domain, D0
-	move.l D0, A1
-	move.l #(1*row_delta/2-1), D1
-.loop:
-	move.w #$40, (A1)+
-	dbf D1, .loop
-
-	move.l D0, A1
-
+	jsr log_newline
+	move.l D0, A2
+	jsr log_newline
+	move.l A2, A1
+	
+	move.l SP,-(SP)
 	move.l (vblank_pc),-(SP)
 	move.l (counter1),-(SP)
 	pea .msg
-	move.w #11, -(SP)
+	move.w #12, -(SP)
 	move.l A1, -(SP)
 	jsr printf
-	drop 8
+	drop 12
 	enable_interrupts
 	rts
 .msg:
-	dc.b "f%d @%X\0"
+	dc.b "f%d pc%06X sp%06X\0"
 	align 2
 	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -634,7 +632,7 @@ loop:
 	
 	addq.l #1, counter1
 	
-	jsr status_bar
+
 	
 	rts
 	
@@ -646,6 +644,7 @@ vblank:
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	move.l (SP,2), (vblank_pc)
 	jsr print_ex_stack
+	jsr status_bar
 	enable_interrupts
 	rte
 
