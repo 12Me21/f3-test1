@@ -78,7 +78,6 @@ print_ex_stack:
 	move.w (abcd+2),D0
 	move.l D0, -(SP)
 	pea.l .msg
-	move.w	#10, -(SP)
 	jsr logf
 	lea.l	(4*3,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
@@ -91,7 +90,6 @@ print_ex_stack:
 ex_access:	
 	disable_interrupts
 	pea.l .msg
-	move.w	#10, -(SP)
 	jsr logf
 	jsr print_ex_stack
 	enable_interrupts
@@ -103,7 +101,6 @@ ex_access:
 ex_a_line:
 	disable_interrupts
 	pea.l .msg
-	move.w	#10, -(SP)
 	jsr logf
 	jsr print_ex_stack
 	enable_interrupts
@@ -115,7 +112,6 @@ ex_a_line:
 ex_f_line:
 	disable_interrupts
 	pea.l .msg
-	move.w	#10, -(SP)
 	jsr logf
 	jsr print_ex_stack
 	enable_interrupts
@@ -177,7 +173,8 @@ memcpyl:
 	rtd	#(.end-8)
 	
 font_def:
-	INCLUDE "font.s"
+	;INCLUDE "font.s"
+	INCLUDE "font2.s"
 	
 ;;; not position independent!
 	ORG $5dde
@@ -223,28 +220,25 @@ printf:
 	
 logf:
 	link.w	A6,#-$80
-	pea	($e,A6)
-	move.l	($a,A6),-(SP)
+	pea	($c,A6)
+	move.l	($8,A6),-(SP)
 	pea	(-$80,A6)
 	jsr	sprintf
 	move.w	($8,A6),-(SP)
 	pea	(-$80,A6)
 	jsr	log
 	unlk	A6
-	rtd #$6
+	rtd #$4
 	
 ; text ram address format: [...y yyyy yXXX XXX.]
 log:
 .strptr = 8
-.color = .strptr+4
-.end = .color+2
+.end = .strptr+4
 	disable_interrupts
 	link.w	A6,#0
 	movem.l	A1/A0/D7/D0, -(SP)
 	movea.l	(.strptr,A6),A0
-	move.w	(.color,A6),D7
-	lsl.w	#1, D7
-	lsl.w	#8, D7
+	move #(10<<1<<8), D7
 	move.l (cursor), A1
 .loop:
 	move.b	(A0)+,D7
@@ -252,8 +246,7 @@ log:
 	beq	.clear_rest
 	;; control
 	move.b	(A0)+,D7
-	lsl.w	#1, D7
-	lsl.w	#8, D7
+	bfins D7, D7{(32-9-4):4}
 	bra	.loop
 .ok:
 	move.w	D7,(A1)+
@@ -417,30 +410,33 @@ setup_sprites:
 	dc.w	$0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
 	dc.w	$0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
 	dc.w	$0000, $FFFF, $5000, $0000, $0000, $0000, $8002, $0000
-
+	
 load_game_font:
-		lea	(font_def).l,A0
-		move.w	#$2ff,D0
-		lea	($61e000).l,A1
-.LAB_00005b86:
-		move.l	(A0)+,D1
-		;; swap...
-		swap	D1
-		move.l	D1,(A1)+
-		dbf	D0,.LAB_00005b86
-		move.w	#$7,D0
-		lea	($61f200).l,A1
-.LAB_00005b9a:
-		clr.l	(A1)+
-		dbf	D0,.LAB_00005b9a
-		rts
+	lea font_def, A0
+	lea $61E000, A1
+	move.w #(128*32/4-1),D0
+.loop:
+	move.l (A0)+,(A1)+
+	dbf	D0, .loop
+	rts
 
 PALETTE_RAM = $440000
 load_system_palettes:
 	move.w	#(15*16), -(SP)
 	pea	palettes
 	pea	PALETTE_RAM
-	bsr	memcpyl
+	jsr	memcpyl
+	
+	moveq #10, D0
+	lea ($440000+(4*16*2)), A0
+.loop:
+	move.l (8,A0),D1
+	move.l #0,(4,A0)
+	lsr #1,D1
+	andi.l #$007F7F7F,D1
+	move.l D1,($C,A0)
+	adda #(4*16),A0
+	dbf D0, .loop
 	rts
 	
 palettes:
@@ -550,17 +546,16 @@ s_WAIT_A_MOMENT:
 	ALIGN 2
 	
 s_frame:	
-	dc.b	"FRAME:\xFF\x02%d\0"
+	dc.b	"FRAME:\xFF%c%d\0"
 	align 2
 	
 loop:
 	move.l counter1, D0
 	move.l 	D0, -(SP)
+	move.l 	#4, -(SP)
 	pea.l s_frame
-	move.l #4, D0
-	move.w	D0, -(SP)
 	jsr logf
-	lea.l	($4,SP),SP
+	lea.l	($8,SP),SP
 	
 	moveq.l #0, D0
 	move.b $4A000B, D0
@@ -568,18 +563,15 @@ loop:
 	move.b $4A000A, D0
 	
 	move.l 	D0, -(SP)
+	move.l 	D0, -(SP)
 	pea.l s_WAIT_A_MOMENT
-;	move.l	counter1, D0
-										  ;	andi.l	#15, D0
-	move.l #12, D0
-	move.w	D0, -(SP)
 	jsr logf
-	lea.l	($4,SP),SP
+	lea.l	($8,SP),SP
 	
 	addq.l #1, counter1
 	rts
 	
-vblank_2:
+vblank:
 	disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	kick_watchdog
@@ -591,7 +583,7 @@ vblank_2:
 
 timer:
 	rte
-vblank:
+vblank_2:
 	rte
 	
 error:
@@ -602,7 +594,6 @@ error:
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l 	(abcd+8), -(SP)
 	pea.l s_ERRBAD
-	move.w	#10, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
@@ -615,7 +606,6 @@ inst_error:
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l 	(abcd), -(SP)
 	pea.l .msg
-	move.w	#10, -(SP)
 	jsr logf
 	lea.l	($4,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
@@ -635,7 +625,6 @@ default_interrupt:
 	move.l 	(abcd), -(SP)
 	move.l 	(abcd+4), -(SP)
 	pea.l s_INTMSG
-	move.w	#10, -(SP)
 	jsr logf
 	lea.l	($8,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6

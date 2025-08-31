@@ -4,6 +4,8 @@ P2BIN = p2bin
 
 all: test.bin
 
+test.o: font2.s
+
 %.o: %.s
 	$(AS) $< $(ASFLAGS) -o $@
 
