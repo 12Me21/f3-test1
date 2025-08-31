@@ -303,7 +303,7 @@ log:
 	move.l A1, D0
 	bfextu D0{32-7-6:6}, D0 ;extract y coordinate
 	mulu.w #-8, D0	;convert to negative pixels
-	addi.w #(256-8-(status_height*8)), D0 				  ;put it to line 256
+	addi.w #(256-(status_height*8)), D0 				  ;put it to line 256
 	move.w D0, PVT_Y
 	
 	movem.l	(SP)+, D7/D1/D0/A0/A1
