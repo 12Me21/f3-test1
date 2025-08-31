@@ -340,10 +340,6 @@ status_bar:
 ;	move.w $4A000A, D0
 										  ;	ror.w #8, D0
 	move.l edit_addr, A0
-	moveq.l #0, D0
-	move.l (A0), D0
-	
-	move.l D0,-(SP)
 	move.l edit-2,-(SP)
 	move.l A0,-(SP)
 	move.l SP,-(SP)
@@ -353,10 +349,10 @@ status_bar:
 	move.w #12, -(SP)
 	move.l A1, -(SP)
 	jsr printf
-	drop 4*7
+	drop 4*6
 	rts
 .msg:
-	dc.b "f%d pc%06X sp%06X\nedit:%06X[%d]=%08X btn:%2X\0"
+	dc.b "f%d pc%06X sp%06X\nedit:%06X[%d] btn:%2X\0"
 	align 2
 	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -667,11 +663,11 @@ loop:
 	;; 
 	move.w edit, D2
 	btst #2, D1
-	beq .n1
+	bne .n1
 	subi.w #1,D2
 .n1:
 	btst #3, D1
-	beq .n2
+	bne .n2
 	addi.w #1,D2
 .n2:
 	andi.w #7,D2
@@ -681,27 +677,26 @@ loop:
 	lsl.l #2,D2
 	lsl.l D2,D0
 	btst #0, D1
-	beq .n3
+	bne .n3
 	subi.l D0,(edit_addr)
 .n3:
 	btst #1, D1
-	beq .n4
+	bne .n4
 	addi.l D0,(edit_addr)
 .n4:
 	;; 
-	btst #8, D1
+	btst.l #8, D1
 	beq .n5
 	move.l edit_addr, A0
-	dc.w $AAAA
-	move.l #0, -(SP)
-	move.l #1, -(SP)
+	move.l (A0), -(SP)
+	move.l A0, -(SP)
 	pea.l .mem_report
 	jsr logf
 	drop 4*2
 .n5:
 	rts
 .mem_report:
-	dc.s "test\n\0"
+	dc.b "[%6X] is %08X\n\0"
 	align 2
 	
 vblank:
