@@ -22,8 +22,9 @@ pvy = $400040
 counter1 = $400048
 abcd = $400050
 vblank_pc = $400100
-
-
+old_btn = $400180
+rising_btn = $400184
+edit = $400200
 
 fixed_bfextu macro source, start, length, dest
 	bfextu source{32-start-length:length}, dest
@@ -272,11 +273,14 @@ procchar:
 	bfins D7, D7{32-9-4:4}
 	rts
 .putch:
+	cmp.b #$A,D7
+	beq .newline
 	;; check if at end of line
 	move.l A1, D0
 	bfextu	D0{32-1-6:6}, D1  ;get x
 	cmpi.w	#COLS,D1
 	blt	.ok1
+.newline:
 	jsr	log_newline
 	move.l D0, A1
 .ok1:
@@ -326,6 +330,14 @@ status_bar:
 	jsr log_newline
 	move.l A2, A1
 	
+	move.l (rising_btn-2),-(SP)
+	
+	moveq.l #0, D0
+	move.w $4A000A, D0
+	ror.w #8, D0
+
+	move.l (D0),-(SP)
+	move.l D0,-(SP)
 	move.l SP,-(SP)
 	move.l (vblank_pc),-(SP)
 	move.l (counter1),-(SP)
@@ -333,11 +345,11 @@ status_bar:
 	move.w #12, -(SP)
 	move.l A1, -(SP)
 	jsr printf
-	drop 12
+	drop 4*6
 	enable_interrupts
 	rts
 .msg:
-	dc.b "f%d pc%06X sp%06X\0"
+	dc.b "f%d pc%06X sp%06X\ndial:%4X=%4X btn:%2X\0"
 	align 2
 	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -632,8 +644,17 @@ loop:
 	
 	addq.l #1, counter1
 	
-
+	move.b $4A0003, D0
+	lsl #8, D0
+	move.b $4A0007, D0
+	move.w old_btn, D1
+	move.w D0, old_btn
 	
+	eori.w #-1, D0
+	and.w D0, D1
+	move.w D1, rising_btn
+	
+		
 	rts
 	
 vblank:
