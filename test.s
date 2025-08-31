@@ -667,11 +667,11 @@ loop:
 	;; 
 	move.w edit, D2
 	btst #2, D1
-	bne .n1
+	beq .n1
 	subi.w #1,D2
 .n1:
 	btst #3, D1
-	bne .n2
+	beq .n2
 	addi.w #1,D2
 .n2:
 	andi.w #7,D2
@@ -681,27 +681,27 @@ loop:
 	lsl.l #2,D2
 	lsl.l D2,D0
 	btst #0, D1
-	bne .n3
+	beq .n3
 	subi.l D0,(edit_addr)
 .n3:
 	btst #1, D1
-	bne .n4
+	beq .n4
 	addi.l D0,(edit_addr)
 .n4:
 	;; 
 	btst #8, D1
-	bne .n5
+	beq .n5
 	move.l edit_addr, A0
-	move.l (A0), -(SP)
-	move.l A0, -(SP)
+	dc.w $AAAA
+	move.l #0, -(SP)
+	move.l #1, -(SP)
 	pea.l .mem_report
 	jsr logf
 	drop 4*2
 .n5:
-	
 	rts
 .mem_report:
-	dc.s "[%6X] is %08X\0"
+	dc.s "test\n\0"
 	align 2
 	
 vblank:
