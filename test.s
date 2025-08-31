@@ -25,6 +25,7 @@ vblank_pc = $400100
 old_btn = $400180
 rising_btn = $400184
 edit = $400200
+edit_addr = $400204
 
 fixed_bfextu macro source, start, length, dest
 	bfextu source{32-start-length:length}, dest
@@ -288,6 +289,16 @@ procchar:
 .ret:
 	rts
 	
+;; uses D0
+log_adj_scroll:	
+	;; scroll so that cursor is at a particular line
+	move.l cursor, D0
+	bfextu D0{32-7-6:6}, D0 ;extract y coordinate
+	mulu.w #-8, D0	;convert to negative pixels
+	addi.w #(256-8-(status_height*8)), D0 				  ;put it to line 256
+	move.w D0, PVT_Y
+	rts
+	
 ; text ram address format: [110y yyyy yXXX XXX0]
 log:
 .strptr = 8
@@ -305,13 +316,7 @@ log:
 .finished:
 ;	move.w #$0601,(A1)
 	move.l A1, (cursor)
-
-;; scroll so that cursor is at a particular line
-	move.l A1, D0
-	bfextu D0{32-7-6:6}, D0 ;extract y coordinate
-	mulu.w #-8, D0	;convert to negative pixels
-	addi.w #(256-8-(status_height*8)), D0 				  ;put it to line 256
-	move.w D0, PVT_Y
+	jsr log_adj_scroll
 	
 	movem.l	(SP)+, D7/D1/D0/A0/A1
 	unlk	A6
@@ -323,7 +328,6 @@ drop macro amt
 	endm
 	
 status_bar:
-	disable_interrupts
 	move.l (cursor), D0
 	jsr log_newline
 	move.l D0, A2
@@ -332,12 +336,16 @@ status_bar:
 	
 	move.l (rising_btn-2),-(SP)
 	
+;	moveq.l #0, D0
+;	move.w $4A000A, D0
+										  ;	ror.w #8, D0
+	move.l edit_addr, A0
 	moveq.l #0, D0
-	move.w $4A000A, D0
-	ror.w #8, D0
-
-	move.l (D0),-(SP)
+	move.l (A0), D0
+	
 	move.l D0,-(SP)
+	move.l edit-2,-(SP)
+	move.l A0,-(SP)
 	move.l SP,-(SP)
 	move.l (vblank_pc),-(SP)
 	move.l (counter1),-(SP)
@@ -345,11 +353,10 @@ status_bar:
 	move.w #12, -(SP)
 	move.l A1, -(SP)
 	jsr printf
-	drop 4*6
-	enable_interrupts
+	drop 4*7
 	rts
 .msg:
-	dc.b "f%d pc%06X sp%06X\ndial:%4X=%4X btn:%2X\0"
+	dc.b "f%d pc%06X sp%06X\nedit:%06X[%d]=%08X btn:%2X\0"
 	align 2
 	
 text_coord	FUNCTION x,y,$61c000 + 2*(y*$40 + x)
@@ -611,6 +618,10 @@ entry:
 	jsr	load_game_font
 	jsr	load_system_palettes
 	
+	jsr log_adj_scroll
+	move.l #0, edit
+	move.l #0, edit_addr
+	
 	moveq.l #6, D6
 	enable_interrupts
 	bra spin
@@ -643,7 +654,7 @@ loop:
 	;lea.l	($8,SP),SP
 	
 	addq.l #1, counter1
-	
+	;; read btns
 	move.b $4A0003, D0
 	lsl #8, D0
 	move.b $4A0007, D0
@@ -653,8 +664,30 @@ loop:
 	eori.w #-1, D0
 	and.w D0, D1
 	move.w D1, rising_btn
+	;; 
+	move.w edit, D2
+	btst #2, D1
+	bne .n1
+	addi.w #1,D2
+.n1:
+	btst #3, D1
+	bne .n2
+	subi.w #1,D2
+.n2:
+	andi.w #3,D2
+	move.w D2,edit
+	beq .n4 							  ;dont let edit 0
+	;; 
 	
-		
+	btst #0, D1
+	bne .n3
+	subi.w #1,(edit_addr-1,D2)
+.n3:
+	btst #1, D1
+	bne .n4
+	addi.w #1,(edit_addr-1,D2)
+.n4:
+	
 	rts
 	
 vblank:
@@ -664,7 +697,7 @@ vblank:
 	jsr loop
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	move.l (SP,2), (vblank_pc)
-	jsr print_ex_stack
+	;jsr print_ex_stack
 	jsr status_bar
 	enable_interrupts
 	rte
