@@ -134,6 +134,59 @@ ex_f_line:
 .msg:
 	dc.b	"F-LINE ERROR!\0"
 	ALIGN 2
+
+
+
+to_hex_digit:
+	moveq.l #0, D3
+	move.l D0, D2
+	moveq.l #0, D1
+	andi.w #$EE, D2
+	abcd D2, D1
+	;; get the x
+	addx D3, D3
+	ror.w #4, D3
+	move.b D1, D3
+	move.l D3, D1
+	;; ok now we have the carries, mask them
+	andi.w #$1010, D1
+	;; and apply to
+	moveq.l #0, D3
+	unpk D0, D3, #$3030
+	add.w D1, D3
+	lsr.w #4, D1
+	add.w D3, D1
+	;; ahh almost. 
+	
+	;unpk D0, D1, #0
+	
+	;move.l #$90, D1
+	;moveq.l #$30, D2
+	;abcd D0, D1
+	;addx D1, D2
+	;unpk D0, D1, #3030
+	;andi.l #$FFFF, D1
+	move.l D1, -(SP)
+	move.l D0, -(SP)
+	pea.l .msg
+	jsr logf
+	drop 8
+	rts
+.msg:
+	dc.b	"bcd %x -> %x\n\0"
+	align 2
+		
+
+	;; A0 - print dest
+	;; A1 - source address
+print_hexl_line:
+	;movem.l	A1/A0/D1/D0, -(SP)
+	;movea.l	(.address,A6),A0
+	;movem.l	(SP)+, D0/D1/A0/A1
+	rts
+	
+	
+	
 	
 	;; A0: dest
 	;; D1: count (bytes)
@@ -665,6 +718,9 @@ loop:
 	;pea.l s_WAIT_A_MOMENT
 	;jsr logf
 	;lea.l	($8,SP),SP
+	
+	move.l counter1, D0
+	jsr to_hex_digit
 	
 	addq.l #1, counter1
 	;; read btns
