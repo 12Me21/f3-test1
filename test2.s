@@ -172,6 +172,7 @@ print_hexl_line:
 	jsr print_hex_digit
 	jsr print_hex_digit
 	jsr print_hex_digit
+	move.b #'|', (A4)+
 	move.b #0, (A4)+
 	
 	move.l A4, D0
