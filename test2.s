@@ -15,7 +15,8 @@ PIVOT_PORT = $621000
 LINERAM = $620000
 SPRITE_RAM = $600000
 FIO_0 = $4a0000
-
+PF_CONTROL = $660000
+	
 RAM_BASE = $408000
 cursor = $400044
 pvy = $400040
@@ -136,43 +137,44 @@ ex_f_line:
 	ALIGN 2
 
 
-
-to_hex_digit:
-	moveq #0, D1
-	bfins D0, D1{32-4-3:4}		  ;d1 = [0nnn n000]
-	abcd D1, D1						  ;d1 = [nnnn 0000] x = carry
-	addx #$f, D1					  ;d1 = [nnnn 1111] or [nnnm 0000]
-	;roxr.b #4, D1
-	;add.b #0, D1
-	
-	
-	;; ok!!
-	
-	;unpk D0, D1, #0
-	
-	;move.l #$90, D1
-	;moveq.l #$30, D2
-	;abcd D0, D1
-	;addx D1, D2
-	;unpk D0, D1, #3030
-	;andi.l #$FFFF, D1
-	move.l D1, -(SP)
-	move.l D0, -(SP)
-	pea.l .msg
-	jsr logf
-	drop 8
+	;; D0 - value
+	;; D7 - attr (low byte modified)
+	;; A4 - print dest (modified)
+	;; temp: D1
+print_hex_digit:
+	bfextu D0{0:4}, D1 			  ;highest nibble
+	cmpi.b #9,D1
+	ble .small
+	addq.b #$7, D1
+.small:
+	addi.b #$30, D1
+	move.b D1, D7
+	move.l D7, (A4)+
+	lsl.l #4, D0
 	rts
-.msg:
-	dc.b	"bcd %x -> %x\n\0"
-	align 2
-		
+	;moveq #0, D1
+	;bfins D0, D1{32-4-3:4}		  ;d1 = [0nnn n000]
+	;abcd D1, D1						  ;d1 = [nnnn 0..0] x = carry
 
-	;; A0 - print dest
-	;; A1 - source address
+;; A0 - source
+;; A4 - print dest
+;; D0, D1, D7 - modified
 print_hexl_line:
-	;movem.l	A1/A0/D1/D0, -(SP)
-	;movea.l	(.address,A6),A0
-	;movem.l	(SP)+, D0/D1/A0/A1
+	move.l A0, D0
+	lsl.l #8, D0
+	move.l #$1000, D7
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	
+	move.l A4, D0
+	bfclr	D0{32-1-6:6} 		  ; carriage return
+	addi.w #row_delta, D0		  ; line feed
+	andi.w #cursor_domain, D0
+	move.l D0, A4
 	rts
 	
 	
@@ -458,6 +460,13 @@ FILL_L2	MACRO dest1,dest2,len,val1,val2
 	;; m - latch normal
 	
 setup_scroll:	
+	lea control_defaults, A1
+	lea PF_CONTROL, A0
+	move.l #(16-1), D0
+.loop:
+	move.w (A1)+, (A0)+
+	dbf D0, .loop
+	
 	move.w	#24,PVT_Y
 	move.w	#(41+(40-COLS)*8/2),PVT_X
 	rts
@@ -476,7 +485,7 @@ setup_pivot_port:
 	rts
 	
 setup_lineram:
-	lea .defaults, A1
+	lea lineram_defaults, A1
 	lea LINERAM, A0
 	move.l #($1000-$400), D4
 	moveq	#7, D2
@@ -507,7 +516,7 @@ setup_lineram:
 	dbf D2, .loop1
 	rts
 	
-.defaults:
+lineram_defaults:
 	dc.w 0,0,0,0
 	dc.w 0,0,0,0
 	dc.w $02FF, $BDB9, $7000, $0037
@@ -515,9 +524,12 @@ setup_lineram:
 	dc.w $0080, $0080, $0080, $0080
 	dc.w $0000, $0000, $0000, $0000
 	dc.w $003F, $003F, $003F, $003F
-	dc.w $100B, $1009, $1003, $1001
-	
-lineram_settings_table1:
+	dc.w $300B, $3009, $3003, $3001
+control_defaults:	
+	dc.w $F67F,$F77F,$F87F,$F77F,$F400,$F400,$F400,$F400
+	dc.w $0000,$0000,$0000,$0000,$0029,$0018,$0000,$0000
+
+lineram_defaults_old:
 	dc.w $0000,$0000,$0000,$0000
 	dc.w $0000,$0000,$0000,$0000
 	dc.w $00fb,$bbbb,$7000,$0000
@@ -659,14 +671,14 @@ entry:
 	; interrupt timer disable
 	move.w #$0000,$4c0000
 	; pf control
-	move.w #$80,$66001e
+	;move.w #$80,$66001e
 	;; clear graphics ram
 	move.l #$FFFF, D0
 	lea $600000, A0
 .loop1:
-	move.l #0, (A0)+
+	clr.l (A0)+
 	dbf D0, .loop1
-	;;  setup pivot port?
+	;;
 	jsr 	setup_sprites
 	jsr	setup_scroll
 	jsr	setup_pivot_port
@@ -709,8 +721,20 @@ loop:
 	;jsr logf
 	;lea.l	($8,SP),SP
 	
-	move.l counter1, D0
-	jsr to_hex_digit
+	;move.l counter1, D0
+	move.l (edit_addr), D0
+	bfextu D0{8:24}, D0
+	move.l $610000, A4
+	lea $FFFFFF, A0
+	jsr print_hexl_line
+	move.w #10000, D1
+	lea $610000, A0
+.loop1:
+	move.l #$00AA3459, (A0)+
+	dbf D1, .loop1
+
+;	move.w (counter1+2), $660000
+	;move.w (counter1+2), $660008
 	
 	addq.l #1, counter1
 	;; read btns
