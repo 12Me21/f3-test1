@@ -2,9 +2,9 @@ AS = asl
 ASFLAGS = -i . -i .. -n -U -q +t 70 -r 2 
 P2BIN = p2bin
 
-all: test.bin
+all: test2.bin
 
-test.o: font2.s
+test2.o: font2.s
 
 %.o: %.s
 	$(AS) $< $(ASFLAGS) -o $@
