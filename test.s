@@ -43,6 +43,10 @@ kick_watchdog macro
 	move.b	#0, FIO_0
 	endm
 	
+drop macro amt
+	lea.l	(amt,SP),SP
+	endm
+	
 RESET_SP:	
 	dc.l	$41FFFC
 RESET_PC:	
@@ -234,14 +238,16 @@ logf:
 .format = 8
 .rest = .format+4	
 .buffer = -$80
-	link.w	A6,#.buffer
+	link.w	A6,#(.buffer)
+	movem.l	A1/A0/D1/D0, -(SP)
 	pea	(.rest,A6)
 	move.l	(.format,A6),-(SP)
 	pea	(.buffer,A6)
 	jsr	sprintf
-	move.w	(.format,A6),-(SP)
+	drop 4*3
 	pea	(.buffer,A6)
 	jsr	log
+	movem.l	(SP)+, D0/D1/A0/A1
 	unlk	A6
 	rtd #$4
 	
@@ -275,7 +281,13 @@ procchar:
 	rts
 .putch:
 	cmp.b #$A,D7
-	beq .newline
+	bne .not_newline
+	;; \n
+	jsr	log_newline
+	move.l D0, A1
+	cmp.b #1,D0 					  ; ugh
+	bra .ret
+.not_newline:
 	;; check if at end of line
 	move.l A1, D0
 	bfextu	D0{32-1-6:6}, D1  ;get x
@@ -286,6 +298,7 @@ procchar:
 	move.l D0, A1
 .ok1:
 	move.w	D7,(A1)+
+	cmp.b #1,D0
 .ret:
 	rts
 	
@@ -318,14 +331,10 @@ log:
 	move.l A1, (cursor)
 	jsr log_adj_scroll
 	
-	movem.l	(SP)+, D7/D1/D0/A0/A1
+	movem.l	(SP)+, D0/D1/D7/A0/A1
 	unlk	A6
 	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
-	
-drop macro amt
-	lea.l	(amt,SP),SP
-	endm
 	
 status_bar:
 	move.l (cursor), D0
@@ -482,6 +491,13 @@ setup_sprites:
 .loop:
 	move.w	(A1)+, (A0)+
 	dbf D0, .loop
+;; 2nd bank
+	lea .defaults, A1
+	lea SPRITE_RAM+$8000, A0
+	move.l	#(8*3-1), D0
+.loop2:
+	move.w	(A1)+, (A0)+
+	dbf D0, .loop2
 	rts
 .defaults:
 	dc.w	$0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
@@ -593,7 +609,8 @@ entry:
 	
 	; setup fio
 	move.b #0,$4a0000
-	move.b #255,$4a0006
+	move.b #0,$4a0006
+	move.b #255,$4a0016
 	move.b #0,$4a0004
 	move.b #0,$4a0014
 	; interrupt timer disable
@@ -651,6 +668,7 @@ loop:
 	
 	addq.l #1, counter1
 	;; read btns
+	moveq.l #0, D0
 	move.b $4A0003, D0
 	lsl #8, D0
 	move.b $4A0007, D0
@@ -687,16 +705,39 @@ loop:
 	;; 
 	btst.l #8, D1
 	beq .n5
-	move.l edit_addr, A0
-	move.l (A0), -(SP)
+	;; read
+	bfextu edit_addr{8:24},D0
+	move.l D0, A0
+	move.l (A0), D0
+	move.l D0, -(SP)
 	move.l A0, -(SP)
 	pea.l .mem_report
 	jsr logf
 	drop 4*2
+	move.b D0, edit_addr
 .n5:
+	btst.l #9, D1
+	beq .n6
+	;; write
+	bfextu edit_addr{8:24},D0
+	move.l D0, A0
+	moveq.l #0, D0
+	move.b edit_addr, D0
+	move.b D0, (A0)
+	
+	move.l D0, -(SP)
+	move.l A0, -(SP)
+	pea.l .write_report
+	jsr logf
+	drop 4*2
+.n6:
+	
 	rts
 .mem_report:
-	dc.b "[%6X] is %08X\n\0"
+	dc.b "\xFF\x04read [%6X] -> %08X\n\0abcdef"
+	align 2
+.write_report:
+	dc.b "\xFF\x02write[%6X] <- %02X\n\0"
 	align 2
 	
 vblank:
