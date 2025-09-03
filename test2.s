@@ -140,17 +140,17 @@ ex_f_line:
 	;; D0 - value
 	;; D7 - attr (low byte modified)
 	;; A4 - print dest (modified)
-	;; temp: D1
 print_hex_digit:
-	bfextu D0{0:4}, D1 			  ;highest nibble
-	cmpi.b #9,D1
+	;bfextu D0{0:4}, D1 			  ;highest nibble
+	rol.l #4, D0
+	move.b D0, D7
+	andi.b #$F, D7
+	cmpi.b #9,D7
 	ble .small
-	addq.b #$7, D1
+	addq.b #$7, D7
 .small:
-	addi.b #$30, D1
-	move.b D1, D7
+	addi.b #$30, D7
 	move.b D7, (A4)+
-	lsl.l #4, D0
 	rts
 	;moveq #0, D1
 	;bfins D0, D1{32-4-3:4}		  ;d1 = [0nnn n000]
@@ -173,6 +173,20 @@ print_hexl_line:
 	jsr print_hex_digit
 	jsr print_hex_digit
 	move.b #'|', (A4)+
+	
+	move.l #(4-1), D1
+.loop:
+	move.l (A0)+, D0
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	jsr print_hex_digit
+	dbf D1, .loop
+	
 	move.b #0, (A4)+
 	
 	move.l A4, D0
@@ -812,7 +826,7 @@ loop:
 .n6:
 	rts
 .msg2:
-	dc.b "test: %s\n\0"
+	dc.b "%s\n\0"
 	align 2
 	
 .mem_report:
