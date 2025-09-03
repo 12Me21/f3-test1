@@ -184,7 +184,7 @@ print_hexl_line:
 	jsr print_hex_digit
 	;move.l #$1000, D7
 	move.b #255, (A4)+
-	move.b #$16, (A4)+
+	move.b #$17, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
 	;move.l #$1100, D7
@@ -194,7 +194,7 @@ print_hexl_line:
 	jsr print_hex_digit
 	;move.l #$1000, D7
 	move.b #255, (A4)+
-	move.b #$16, (A4)+
+	move.b #$17, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
 	dbf D1, .loop
