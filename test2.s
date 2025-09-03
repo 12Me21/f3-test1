@@ -199,6 +199,34 @@ print_hexl_line:
 	rts
 	
 	
+hex_report:	
+	movem.l	A4/A1/A0/D7/D3/D1/D0, -(SP)
+	;move.l (edit_addr), D0
+	;bfextu D0{8:24}, D0
+	move.l D0, A0
+	move.l #10, D3
+.loop:
+	jsr print_hexl_line
+	move.b #0, (A4)+
+	move.l A4, -(SP)
+	pea .msg2
+	jsr logf
+	drop 4
+	dbf D3, .loop
+	;; 
+	
+	pea .msg3
+	jsr logf
+
+	movem.l	(SP)+, A4/A1/A0/D7/D3/D1/D0
+	rts
+.msg2:
+	dc.b "%s\n\0"
+	align 2
+.msg3:
+	dc.b " \n\0"
+	align 2
+	
 	
 	
 	;; A0: dest
@@ -743,15 +771,6 @@ loop:
 	;lea.l	($8,SP),SP
 	
 	;move.l counter1, D0
-	move.l (edit_addr), D0
-	bfextu D0{8:24}, D0
-	move.l D0, A0
-	jsr print_hexl_line
-	move.b #0, (A4)+
-	move.l A4, -(SP)
-	pea .msg2
-	jsr logf
-	drop 4
 	
 	;move.w #10000, D1
 	;lea $610000, A0
@@ -800,6 +819,8 @@ loop:
 	beq .n5
 	;; read
 	bfextu edit_addr{8:24},D0
+	jsr hex_report
+	bra .skip
 	move.l D0, A0
 	move.l (A0), D0
 	move.l D0, -(SP)
@@ -808,6 +829,7 @@ loop:
 	jsr logf
 	drop 4*2
 	move.b D0, edit_addr
+.skip:
 .n5:
 	btst.l #9, D1
 	beq .n6
@@ -825,9 +847,6 @@ loop:
 	drop 4*2
 .n6:
 	rts
-.msg2:
-	dc.b "%s\n\0"
-	align 2
 	
 .mem_report:
 	dc.b "\xFF\x04read [%6X] -> %08X\n\0abcdef"
