@@ -138,25 +138,15 @@ ex_f_line:
 
 
 to_hex_digit:
-	moveq.l #0, D3
-	move.l D0, D2
-	moveq.l #0, D1
-	andi.w #$EE, D2
-	abcd D2, D1
-	;; get the x
-	addx D3, D3
-	ror.w #4, D3
-	move.b D1, D3
-	move.l D3, D1
-	;; ok now we have the carries, mask them
-	andi.w #$1010, D1
-	;; and apply to
-	moveq.l #0, D3
-	unpk D0, D3, #$3030
-	add.w D1, D3
-	lsr.w #4, D1
-	add.w D3, D1
-	;; ahh almost. 
+	moveq #0, D1
+	bfins D0, D1{32-4-3:4}		  ;d1 = [0nnn n000]
+	abcd D1, D1						  ;d1 = [nnnn 0000] x = carry
+	addx #$f, D1					  ;d1 = [nnnn 1111] or [nnnm 0000]
+	;roxr.b #4, D1
+	;add.b #0, D1
+	
+	
+	;; ok!!
 	
 	;unpk D0, D1, #0
 	
