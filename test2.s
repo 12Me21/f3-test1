@@ -149,7 +149,7 @@ print_hex_digit:
 .small:
 	addi.b #$30, D1
 	move.b D1, D7
-	move.l D7, (A4)+
+	move.b D7, (A4)+
 	lsl.l #4, D0
 	rts
 	;moveq #0, D1
@@ -160,6 +160,9 @@ print_hex_digit:
 ;; A4 - print dest
 ;; D0, D1, D7 - modified
 print_hexl_line:
+.buffer = -$80
+	link.w	A6,#(.buffer)
+	lea (.buffer,A6), A4
 	move.l A0, D0
 	lsl.l #8, D0
 	move.l #$1000, D7
@@ -169,12 +172,15 @@ print_hexl_line:
 	jsr print_hex_digit
 	jsr print_hex_digit
 	jsr print_hex_digit
+	move.b #0, (A4)+
 	
 	move.l A4, D0
 	bfclr	D0{32-1-6:6} 		  ; carriage return
 	addi.w #row_delta, D0		  ; line feed
 	andi.w #cursor_domain, D0
 	move.l D0, A4
+	lea (.buffer,A6), A4
+	unlk	A6
 	rts
 	
 	
@@ -724,14 +730,16 @@ loop:
 	;move.l counter1, D0
 	move.l (edit_addr), D0
 	bfextu D0{8:24}, D0
-	move.l $610000, A4
-	lea $FFFFFF, A0
+	move.l D0, A0
 	jsr print_hexl_line
-	move.w #10000, D1
-	lea $610000, A0
-.loop1:
-	move.l #$00AA3459, (A0)+
-	dbf D1, .loop1
+	move.b #0, (A4)+
+	move.l A4, -(SP)
+	pea .msg2
+	jsr logf
+	drop 4
+	
+	;move.w #10000, D1
+	;lea $610000, A0
 
 ;	move.w (counter1+2), $660000
 	;move.w (counter1+2), $660008
@@ -801,8 +809,11 @@ loop:
 	jsr logf
 	drop 4*2
 .n6:
-	
 	rts
+.msg2:
+	dc.b "test: %s\n\0"
+	align 2
+	
 .mem_report:
 	dc.b "\xFF\x04read [%6X] -> %08X\n\0abcdef"
 	align 2
@@ -821,7 +832,7 @@ vblank:
 	jsr status_bar
 	enable_interrupts
 	rte
-
+	
 timer:
 	rte
 vblank_2:
