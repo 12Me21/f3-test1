@@ -164,14 +164,17 @@ print_hexl_line:
 	link.w	A6,#(.buffer)
 	lea (.buffer,A6), A4
 	move.l A0, D0
+	andi.l #(~$F), D0
+	move.l D0, A0
 	lsl.l #8, D0
-	move.l #$1000, D7
+	move.l #$2000, D7
 	jsr print_hex_digit
 	jsr print_hex_digit
 	jsr print_hex_digit
 	jsr print_hex_digit
 	jsr print_hex_digit
-	jsr print_hex_digit
+	;jsr print_hex_digit
+	move.b #'o', (A4)+
 	move.b #'|', (A4)+
 	
 	move.l #(4-1), D1
@@ -179,12 +182,12 @@ print_hexl_line:
 	move.l (A0)+, D0
 	;move.l #$1100, D7
 	move.b #255, (A4)+
-	move.b #$18, (A4)+
+	move.b #$17, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
 	;move.l #$1000, D7
 	move.b #255, (A4)+
-	move.b #$17, (A4)+
+	move.b #$19, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
 	;move.l #$1100, D7
@@ -194,7 +197,7 @@ print_hexl_line:
 	jsr print_hex_digit
 	;move.l #$1000, D7
 	move.b #255, (A4)+
-	move.b #$17, (A4)+
+	move.b #$19, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
 	dbf D1, .loop
@@ -215,11 +218,15 @@ hex_report:
 	movem.l	A4/A1/A0/D7/D3/D1/D0, -(SP)
 	;move.l (edit_addr), D0
 	;bfextu D0{8:24}, D0
+	pea .msg1
+	jsr logf
+
+
 	move.l D0, A0
 	move.l #10, D3
 .loop:
 	jsr print_hexl_line
-	move.b #0, (A4)+
+	;move.b #0, (A4)+
 	move.l A4, -(SP)
 	pea .msg2
 	jsr logf
@@ -237,6 +244,9 @@ hex_report:
 	align 2
 .msg3:
 	dc.b " \n\0"
+	align 2
+.msg1:
+	dc.b "------+00112233445566778899AABBCCDDEEFF\n\0"
 	align 2
 	
 	
@@ -293,12 +303,8 @@ memcpyl:
 	unlk	A6
 	rtd	#(.end-8)
 	
-font_def:
-	;INCLUDE "font.s"
-	INCLUDE "font2.s"
-	
 ;;; not position independent!
-	ORG $5dde
+
 sprintf:
 	BINCLUDE "sprintf.bin"
 	rts
@@ -929,3 +935,12 @@ default_interrupt:
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	enable_interrupts
 	rte
+	
+	
+	
+
+	
+font_def:
+	;INCLUDE "font.s"
+	INCLUDE "font2.s"
+	
