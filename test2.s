@@ -177,12 +177,24 @@ print_hexl_line:
 	move.l #(4-1), D1
 .loop:
 	move.l (A0)+, D0
+	;move.l #$1100, D7
+	move.b #255, (A4)+
+	move.b #$18, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
+	;move.l #$1000, D7
+	move.b #255, (A4)+
+	move.b #$16, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
+	;move.l #$1100, D7
+	move.b #255, (A4)+
+	move.b #$18, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
+	;move.l #$1000, D7
+	move.b #255, (A4)+
+	move.b #$16, (A4)+
 	jsr print_hex_digit
 	jsr print_hex_digit
 	dbf D1, .loop
@@ -372,6 +384,7 @@ procchar:
 	;; control
 	move.b	(A0)+,D7
 	bfins D7, D7{32-9-4:4}
+	cmp.b #1,D0
 	rts
 .putch:
 	cmp.b #$A,D7
