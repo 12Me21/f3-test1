@@ -565,13 +565,14 @@ write_lineram_block:
 	adda.l #2, A1
 	rts
 	
+	;; [??mm mmM? LLLL llll]
 setup_lineram:
 	lea lineram_defaults, A1
 	lea LINERAM, A0
-	move.l #($1000-$400), D4
+	move.w #($4<<10), D4
 	moveq	#7, D2
 .loop1:
-	addi.w #$40F, D4
+	move.b #$0F, D4
 	move.l #255, D1
 .loop2:
 	move.w D4, (A0)+
@@ -580,15 +581,17 @@ setup_lineram:
 	move.b #$00, D4
 	
 	;; put the value
+	bfextu D4{32-10-4:4}, D3
+	mulu.w #$1000, D3
 	lea $620000, A3
-	move.w D4, D3
-	lsl.w #2, D3
-	adda.w D3, A3
+	add.l D3, A3
+	;stop #$2F00
 	
 	move.l A3, -(SP)
+	move.l D3, -(SP)
 	pea.l .msg
 	jsr logf
-	drop 4
+	drop 4*2
 	
 	bsr write_lineram_block
 	bsr write_lineram_block
@@ -596,10 +599,11 @@ setup_lineram:
 	bsr write_lineram_block
 	
 	;; 
+	addi.w #$400, D4
 	dbf D2, .loop1
 	rts
 .msg:
-	dc.b "lineram write to: %x\n\0"
+	dc.b "lineram write to: %x %x\n\0"
 	align 2
 	
 lineram_defaults:
