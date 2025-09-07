@@ -616,12 +616,23 @@ setup_lineram:
 lineram_defaults:
 	dc.w $0000, $0000, $0000, $0000 ;colscroll
 	dc.w $0000, $0000, $0000, $0000 ;clip
-	dc.w $02FF, $bfFb, $7000, $0037
-	dc.w $0001, $300F|$4000, $0300, $5555 ;7000
+	dc.w $0255, $bbbb, $7000, $0037
+	;; pf alpha disabled (00)
+	;; pivot alpha enabled (01,select=1)
+	;; sprites alpha enabled (01,select=1)
+	;; pivot->pf: pivot uses blend 1, pf uses blend 4
+	;; pf+pf: uses blend 4 and 2
+	;; sprites select=0: sprite->pf: sprite uses blend 2, pf uses blend 4
+	;; sprites select=1: sprite->pf: sprite uses blend 1, pf uses blend 4
+	
+	;; ok so  select determines: 0 = 2 and 4, 1 = 1 and 3  for itself only?
+	
+	
+	dc.w $0001, $300F|$4000, $F300, $5555 ;7000
 	dc.w $0080, $0080, $0080, $0080 ;pf scale
 	dc.w $0000, $0000, $0000, $0000 ;palette add
 	dc.w $003F, $003F, $003F, $003F ;rowscroll
-	dc.w ($300B|$0000), $1009, $1003, $1001 ;pf prio
+	dc.w ($3001|$0000), $1009, $1003, $1001 ;pf prio
 control_defaults:	
 	dc.w $D5A7,$F77F,$F87F,$F97F,$EF88,$F400,$F400,$F400
 	dc.w $0000,$0000,$0000,$0000,$0029,$0018,$0000,$0000
