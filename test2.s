@@ -431,9 +431,11 @@ log_adj_scroll:
 log:
 .strptr = 8
 .end = .strptr+4
-	;disable_interrupts
 	link.w	A6,#0
-	movem.l	A1/A0/D7/D1/D0, -(SP)
+	movem.l	A1/A0/D7/D6/D1/D0, -(SP)
+	move.w SR, D6 					  ; todo: what if we use a trap instead of a function for logging, that way it restores the SR automatically ?
+	disable_interrupts
+	
 	movea.l	(.strptr,A6),A0
 	move #(10<<1<<8), D7
 	move.l (cursor), A1
@@ -446,9 +448,9 @@ log:
 	move.l A1, (cursor)
 	jsr log_adj_scroll
 	
-	movem.l	(SP)+, D0/D1/D7/A0/A1
+	move.w D6, SR
+	movem.l	(SP)+, D0/D1/D6/D7/A0/A1
 	unlk	A6
-	;enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
 	
 status_bar:
@@ -554,15 +556,23 @@ setup_pivot_port:
 	dbf D0, .cpp
 	rts
 	
-	
+	;; (A0)+ -> (A3)
+	;; uses D1,D0
 write_lineram_block:	
-	move.w (A1), D0
-	move.l #255, D1
+	move.w (A1)+, D0
+	move.l #(256-1), D1
 .loop3:
 	move.w D0, (A3)+
-	;addi.l #1, D0
 	dbf D1, .loop3
-	adda.l #2, A1
+	rts
+	
+	;; D4 -> A3
+	;; uses D3
+latch_to_addr:	
+	bfextu D4{32-10-4:4}, D3
+	mulu.w #$1000, D3
+	lea $620000, A3
+	add.l D3, A3
 	rts
 	
 	;; [??mm mmM? LLLL llll]
@@ -570,27 +580,24 @@ setup_lineram:
 	lea lineram_defaults, A1
 	lea LINERAM, A0
 	move.w #($4<<10), D4
-	moveq	#7, D2
+	moveq	#(8-1), D2
 .loop1:
 	move.b #$0F, D4
-	move.l #255, D1
+	move.l #(256-1), D1
 .loop2:
 	move.w D4, (A0)+
-;	move.b #$00, D4
-	dbf D1, .loop2
 	move.b #$00, D4
+	dbf D1, .loop2
 	
 	;; put the value
-	bfextu D4{32-10-4:4}, D3
-	mulu.w #$1000, D3
-	lea $620000, A3
-	add.l D3, A3
-	;stop #$2F00
+	jsr latch_to_addr
 	
+	;link A6, #0
 	move.l A3, -(SP)
 	move.l D3, -(SP)
 	pea.l .msg
 	jsr logf
+	;unlk A6 ; what if we did this or something instead of the manual drop?
 	drop 4*2
 	
 	bsr write_lineram_block
@@ -599,7 +606,7 @@ setup_lineram:
 	bsr write_lineram_block
 	
 	;; 
-	addi.w #$400, D4
+	addi.w #($1<<10), D4
 	dbf D2, .loop1
 	rts
 .msg:
@@ -609,12 +616,12 @@ setup_lineram:
 lineram_defaults:
 	dc.w $0000, $0000, $0000, $0000 ;colscroll
 	dc.w $0000, $0000, $0000, $0000 ;clip
-	dc.w $02FF, $BDB9, $7000, $0037
-	dc.w $0001, $300F, $0300, $5555 ;7000
+	dc.w $02FF, $bfFb, $7000, $0037
+	dc.w $0001, $300F|$4000, $0300, $5555 ;7000
 	dc.w $0080, $0080, $0080, $0080 ;pf scale
 	dc.w $0000, $0000, $0000, $0000 ;palette add
 	dc.w $003F, $003F, $003F, $003F ;rowscroll
-	dc.w $300B, $3009, $3003, $3001 ;pf prio
+	dc.w ($300B|$0000), $1009, $1003, $1001 ;pf prio
 control_defaults:	
 	dc.w $D5A7,$F77F,$F87F,$F97F,$EF88,$F400,$F400,$F400
 	dc.w $0000,$0000,$0000,$0000,$0029,$0018,$0000,$0000
@@ -633,10 +640,11 @@ lineram_defaults_old:
 
 setup_tiles:	
 	lea $610000, A0
-	move.l #$2000-1, D0
+	move.l #(64*32-1), D1
+	move.l #$00021862, D0
 .loop:
-	move.l #$00021862, (A0)+
-	dbf D0, .loop
+	move.l D0, (A0)+
+	dbf D1, .loop
 	rts
 	
 setup_sprites:	
