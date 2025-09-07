@@ -431,7 +431,7 @@ log_adj_scroll:
 log:
 .strptr = 8
 .end = .strptr+4
-	disable_interrupts
+	;disable_interrupts
 	link.w	A6,#0
 	movem.l	A1/A0/D7/D1/D0, -(SP)
 	movea.l	(.strptr,A6),A0
@@ -448,7 +448,7 @@ log:
 	
 	movem.l	(SP)+, D0/D1/D7/A0/A1
 	unlk	A6
-	enable_interrupts 			  ;todo: dont just re-enable here, restore old value
+	;enable_interrupts 			  ;todo: dont just re-enable here, restore old value
 	rtd #(.end-8)
 	
 status_bar:
@@ -585,6 +585,11 @@ setup_lineram:
 	lsl.w #2, D3
 	adda.w D3, A3
 	
+	move.l A3, -(SP)
+	pea.l .msg
+	jsr logf
+	drop 4
+	
 	bsr write_lineram_block
 	bsr write_lineram_block
 	bsr write_lineram_block
@@ -593,7 +598,9 @@ setup_lineram:
 	;; 
 	dbf D2, .loop1
 	rts
-	
+.msg:
+	dc.b "lineram write to: %x\n\0"
+	align 2
 	
 lineram_defaults:
 	dc.w $0000, $0000, $0000, $0000 ;colscroll
@@ -643,11 +650,15 @@ setup_sprites:
 .loop2:
 	move.w	(A1)+, (A0)+
 	dbf D0, .loop2
+	
+	move.w #$83FF, $604000-16+12
+	move.w #$8BFF, $60C000-16+12
+	
 	rts
 .defaults:
 	dc.w $0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
 	dc.w $0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
-	dc.w $0000, $0000, $5000, $0000, $0000, $0000, $0000, $0000
+	dc.w $0000, $FFFF, $5000, $0000, $0000, $0000, $0000, $0000
 	dc.w $0000, $0000, $00F0, $0038, $0801, $0000, $00FF, $0000
 	dc.w $3BE0, $0000, $0000, $0000, $7801, $0000, $0000, $0000
 	dc.w $3BE1, $0000, $0000, $0000, $7801, $0000, $0000, $0000
@@ -655,11 +666,11 @@ setup_sprites:
 	dc.w $3BE3, $0000, $0000, $0000, $7801, $0000, $0000, $0000
 	dc.w $3BE4, $0000, $0000, $0000, $7801, $0000, $0000, $0000
 	dc.w $3BE5, $0000, $0000, $0000, $7801, $0000, $0000, $0000
-	dc.w $0000, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $0000, $0000, $0000, $0000, $7001, $0000, $0000, $0000
 .defaults2:
 	dc.w $0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
 	dc.w $0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
-	dc.w $0000, $0000, $5000, $0000, $0000, $0000, $0000, $0000
+	dc.w $0000, $FFFF, $5000, $0000, $0000, $0000, $0000, $0000
 	dc.w $0000, $0000, $00A0, $0038, $0805, $0000, $00FF, $0000
 	dc.w $3BE0, $0000, $0000, $0000, $7805, $0000, $0000, $0000
 	dc.w $3BE1, $0000, $0000, $0000, $7805, $0000, $0000, $0000
@@ -667,7 +678,7 @@ setup_sprites:
 	dc.w $3BE3, $0000, $0000, $0000, $7805, $0000, $0000, $0000
 	dc.w $3BE4, $0000, $0000, $0000, $7805, $0000, $0000, $0000
 	dc.w $3BE5, $0000, $0000, $0000, $7805, $0000, $0000, $0000
-	dc.w $0000, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $0000, $0000, $0000, $0000, $7005, $0000, $0000, $0000
 	
 load_game_font:
 	lea font_def, A0
@@ -774,7 +785,7 @@ entry:
 	move.l #0, edit_addr
 	
 	moveq.l #6, D6
-	enable_interrupts
+	;enable_interrupts
 	bra spin
 	
 s_WAIT_A_MOMENT:
