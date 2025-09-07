@@ -294,17 +294,18 @@ memcpyl:
 	movea.l	(.dest,A6),A0
 	movea.l	(.src,A6),A1
 	move.w	(.num,A6),D1
-	dbt	D1, .retn
+	subi.l #1, D1
 .loop:
 	move.l	(A1)+,(A0)+
+;.entry:
 	dbf	D1, .loop
 .retn:
-	movem.l	(SP)+, D0/D1/A0/A1
+	movem.l	(SP)+, D1/A0/A1
 	unlk	A6
 	rtd	#(.end-8)
 	
-;;; not position independent!
-
+;;; not position independent ?
+;	ORG $5dde
 sprintf:
 	BINCLUDE "sprintf.bin"
 	rts
@@ -552,6 +553,17 @@ setup_pivot_port:
 	dbf D0, .cpp
 	rts
 	
+	
+write_lineram_block:	
+	move.w (A1), D0
+	move.l #255, D1
+.loop3:
+	move.w D0, (A3)+
+	;addi.l #1, D0
+	dbf D1, .loop3
+	adda.l #2, A1
+	rts
+	
 setup_lineram:
 	lea lineram_defaults, A1
 	lea LINERAM, A0
@@ -562,8 +574,9 @@ setup_lineram:
 	move.l #255, D1
 .loop2:
 	move.w D4, (A0)+
-	move.b #$00, D4
+;	move.b #$00, D4
 	dbf D1, .loop2
+	move.b #$00, D4
 	
 	;; put the value
 	lea $620000, A3
@@ -571,31 +584,30 @@ setup_lineram:
 	lsl.w #2, D3
 	adda.w D3, A3
 	
-	move.w (A1)+, (A3)
-	adda.w #$200, A3
-	move.w (A1)+, (A3)
-	adda.w #$200, A3
-	move.w (A1)+, (A3)
-	adda.w #$200, A3
-	move.w (A1)+, (A3)
-	adda.w #$200, A3
+	bsr write_lineram_block
+	bsr write_lineram_block
+	bsr write_lineram_block
+	bsr write_lineram_block
 	
 	;; 
 	dbf D2, .loop1
 	rts
 	
+	
 lineram_defaults:
-	dc.w 0,0,0,0
-	dc.w 0,0,0,0
+	dc.w $0000, $0000, $0000, $0000 ;colscroll
+	dc.w $0000, $0000, $0000, $0000 ;clip
 	dc.w $02FF, $BDB9, $7000, $0037
-	dc.w $0001, $300F, $0300, $7DDD
-	dc.w $0080, $0080, $0080, $0080
-	dc.w $0000, $0000, $0000, $0000
-	dc.w $003F, $003F, $003F, $003F
-	dc.w $300B, $3009, $3003, $3001
+	dc.w $0001, $300F, $0300, $5555 ;7000
+	dc.w $0080, $0080, $0080, $0080 ;pf scale
+	dc.w $0000, $0000, $0000, $0000 ;palette add
+	dc.w $003F, $003F, $003F, $003F ;rowscroll
+	dc.w $300B, $3009, $3003, $3001 ;pf prio
 control_defaults:	
-	dc.w $F67F,$F77F,$F87F,$F77F,$F400,$F400,$F400,$F400
+	dc.w $D5A7,$F77F,$F87F,$F97F,$EF88,$F400,$F400,$F400
 	dc.w $0000,$0000,$0000,$0000,$0029,$0018,$0000,$0000
+;	dc.w $F67F,$F77F,$F87F,$F77F,$F400,$F400,$F400,$F400
+;	dc.w $0000,$0000,$0000,$0000,$0029,$0018,$0000,$0000
 
 lineram_defaults_old:
 	dc.w $0000,$0000,$0000,$0000
@@ -606,26 +618,55 @@ lineram_defaults_old:
 	dc.w $0000,$0000,$0000,$0000
 	dc.w $0000,$0000,$0000,$0000
 	dc.w $3002,$3009,$300c,$300d
+
+setup_tiles:	
+	lea $610000, A0
+	move.l #10000, D0
+.loop:
+	move.l #$00021862, (A0)+
+	dbf D0, .loop
+	rts
 	
 setup_sprites:	
+.count = 3+8
 	lea .defaults, A1
 	lea SPRITE_RAM, A0
-	move.l	#(8*3-1), D0
+	move.l	#(8*.count-1), D0
 .loop:
 	move.w	(A1)+, (A0)+
 	dbf D0, .loop
 ;; 2nd bank
-	lea .defaults, A1
+	lea .defaults2, A1
 	lea SPRITE_RAM+$8000, A0
-	move.l	#(8*3-1), D0
+	move.l	#(8*.count-1), D0
 .loop2:
 	move.w	(A1)+, (A0)+
 	dbf D0, .loop2
 	rts
 .defaults:
-	dc.w	$0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
-	dc.w	$0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
-	dc.w	$0000, $FFFF, $5000, $0000, $0000, $0000, $8002, $0000
+	dc.w $0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
+	dc.w $0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
+	dc.w $0000, $0000, $5000, $0000, $0000, $0000, $0000, $0000
+	dc.w $0000, $0000, $00F0, $0038, $0801, $0000, $00FF, $0000
+	dc.w $3BE0, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $3BE1, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $3BE2, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $3BE3, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $3BE4, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $3BE5, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+	dc.w $0000, $0000, $0000, $0000, $7801, $0000, $0000, $0000
+.defaults2:
+	dc.w $0000, $FFFF, $0000, $8000, $0000, $0000, $0000, $0000
+	dc.w $0000, $FFFF, $A02E, $0018, $0000, $0000, $0000, $0000
+	dc.w $0000, $0000, $5000, $0000, $0000, $0000, $0000, $0000
+	dc.w $0000, $0000, $00A0, $0038, $0805, $0000, $00FF, $0000
+	dc.w $3BE0, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $3BE1, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $3BE2, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $3BE3, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $3BE4, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $3BE5, $0000, $0000, $0000, $7805, $0000, $0000, $0000
+	dc.w $0000, $0000, $0000, $0000, $7805, $0000, $0000, $0000
 	
 load_game_font:
 	lea font_def, A0
@@ -642,7 +683,7 @@ load_system_palettes:
 	pea	palettes
 	pea	PALETTE_RAM
 	jsr	memcpyl
-	
+	;; correct text colors hack
 	moveq #10, D0
 	lea ($440000+(4*16*2)), A0
 .loop:
@@ -653,6 +694,12 @@ load_system_palettes:
 	move.l D1,($C,A0)
 	adda #(4*16),A0
 	dbf D0, .loop
+	;; sprite palettes
+	move.w #(9*16), -(SP)
+	pea sprite_palette
+	pea PALETTE_RAM+$4000
+	jsr memcpyl
+	
 	rts
 	
 palettes:
@@ -716,6 +763,16 @@ palettes:
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
 	dc.l	$0000f800, $0000f800, $0000f800, $0000f800
+sprite_palette:
+	dc.l $000000, $F7F787, $C7C757, $979727, $F7F7B7, $F7F7F7, $A7C7F7, $67B7F7, $0F9FF7, $3777EF, $1747EF, $1717C7, $1717A7, $3F3F8F, $272777, $171727
+	dc.l $000000, $FFC707, $D79F07, $BF7707, $FFFF07, $F7F7F7, $F7B7BF, $FF979F, $FF6F7F, $F74757, $E72F37, $C70F17, $A70717, $870717, $670717, $171717
+	dc.l $000000, $EFEF07, $C7C70F, $AFA71F, $FFFF87, $F7F7F7, $E7F7E7, $BFF7BF, $7FF77F, $07EF07, $07BF07, $079707, $0F7F0F, $1F671F, $3F5F3F, $2F372F
+	dc.l $000000, $07EFEF, $07CFCF, $07AFAF, $B7F7F7, $F7F7F7, $F7F7AF, $F7F77F, $F7F73F, $E7E717, $CFCF17, $A7A717, $878717, $6F6F17, $5F5F17, $4F4F17
+	dc.l $000000, $F7F757, $DF9F07, $DF6F07, $F7F7B7, $FFF7F7, $FFE7B7, $FFD77F, $FFC73F, $FFBF07, $EF9707, $C77707, $9F5F07, $7F4F07, $5F4707, $570707
+	dc.l $000000, $EFDF07, $D7A707, $BF7707, $F7F797, $F7F7F7, $E7C7F7, $E79FF7, $CF3FF7, $B717EF, $8F17BF, $771797, $67177F, $4F176F, $2F1747, $171717
+	dc.l $000000, $B7B7B7, $9F9F9F, $7F7F7F, $DFDFDF, $FFFFFF, $EFEFEF, $DFDFE7, $CFCFDF, $BFBFD7, $AFAFC7, $9F9FBF, $8F8FB7, $7F7FAF, $6F6FA7, $5F5F9F
+	dc.l $000000, $FFFF67, $FFE707, $FFAF07, $FFFFA7, $FFFFFF, $E7DFDF, $CFC7C7, $B7AFAF, $9F9797, $877F7F, $6F6767, $574F4F, $3F3737, $271F1F, $170707
+	dc.l $000000, $7F97E7, $FF0707, $C7EFFF, $FF976F, $67777F, $7F8757, $97972F, $AFA707, $B7BF07, $B7CF07, $CFDF37, $D7E767, $E7EF97, $E7EFC7, $FFFFFF
 	
 s_INTMSG
 	dc.b	"GOT INTERRUPT %08X %08X!\0"
@@ -753,6 +810,8 @@ entry:
 	jsr	setup_lineram
 	jsr	load_game_font
 	jsr	load_system_palettes
+	
+	jsr	setup_tiles
 	
 	jsr log_adj_scroll
 	move.l #0, edit
@@ -793,7 +852,10 @@ loop:
 	
 	;move.w #10000, D1
 	;lea $610000, A0
-
+	
+	;addi.w #1, ($660008)
+	;addi.w #1, ($660000)
+	;addi.w #1, ($660004)
 ;	move.w (counter1+2), $660000
 	;move.w (counter1+2), $660008
 	

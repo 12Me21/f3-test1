@@ -1,5 +1,5 @@
 AS = asl
-ASFLAGS = -i . -i .. -n -U -q +t 70 -r 2 
+ASFLAGS = -i . -i .. -n -U -q +t 70 -r 2
 P2BIN = p2bin
 
 all: test2.bin
