@@ -28,10 +28,6 @@ rising_btn = $400184
 edit = $400200
 edit_addr = $400204
 
-fixed_bfextu macro source, start, length, dest
-	bfextu source{32-start-length:length}, dest
-	endm
-	
 disable_interrupts	macro
 	ori.w #$700, SR
 	endm
@@ -46,6 +42,12 @@ kick_watchdog macro
 	
 drop macro amt
 	lea.l	(amt,SP),SP
+	endm
+	
+logf3 macro count, str
+	dc.b str
+	align 2
+	drop count
 	endm
 	
 RESET_SP:	
@@ -218,9 +220,9 @@ hex_report:
 	movem.l	A4/A1/A0/D7/D3/D1/D0, -(SP)
 	;move.l (edit_addr), D0
 	;bfextu D0{8:24}, D0
-	pea .msg1
-	jsr logf
-
+	jsr logf2
+	dc.b "------+00112233445566778899AABBCCDDEEFF\n\0"
+	align 2
 
 	move.l D0, A0
 	move.l #10, D3
@@ -246,8 +248,6 @@ hex_report:
 	dc.b " \n\0"
 	align 2
 .msg1:
-	dc.b "------+00112233445566778899AABBCCDDEEFF\n\0"
-	align 2
 	
 	
 	
@@ -274,16 +274,28 @@ COPYIMM	MACRO	dest, length
 	jsr	copyimm
 	ENDM
 	
+get_imm_str:
+	
+	
+	
+	jmp (A6)
+	
+	
+	
+	;; 
+;	movea.l (SP)+, A2
+	
+	
 skip_str_imm:						  ;temp
-	movea.l	(SP), A2
+	movea.l (SP)+, A2
 .loop:
 	tst.b	(A2)+
-	bne	.loop
-	addq.w	#1,	A2
+	bne .loop
+	addq.w #1, A2
 	move.l A2, D7
-	bclr.l	#0, D7
-	move.l D7,(SP)
-	rts
+	bclr.l #0, D7
+	jmp (D7)
+	
 	
 memcpyl:
 .dest equ.l 8
@@ -364,6 +376,32 @@ logf:
 	movem.l	(SP)+, D0/D1/A0/A1
 	unlk	A6
 	rtd #$4
+	
+	org $10000
+logf2:
+.return = 4
+.rest = 8
+.buffer = -$80
+	link.w	A6,#(.buffer)
+	movem.l	A1/A0/D1/D0, -(SP)
+	pea (.rest,A6)
+	move.l (.return,A6), A0
+	move.l A0, -(SP)
+.loop:
+	move.b (A0)+, D0
+	bne .loop
+	move.l A0, D0
+	addq.l #1, D0
+	bclr.l #0, D0
+	move.l D0, (.return,A6)
+	pea	(.buffer,A6)
+	jsr	sprintf
+	drop 4*3
+	pea	(.buffer,A6)
+	jsr	log
+	movem.l	(SP)+, D0/D1/A0/A1
+	unlk	A6
+	rts
 	
 	;; D0 - dest (modified) - todo: would be nice if this was A1
 	;; A1,D1 - used
