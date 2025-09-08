@@ -950,11 +950,18 @@ process_inputs
 	
 vblank:
 	disable_interrupts
+	move.l (SP,2), (vblank_pc)
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
+	
+	cmp.l #END_PRG, (vblank_pc)
+	ble .okay
+	stop #$2F00
+.okay
 	kick_watchdog
+	
 	jsr loop
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
-	move.l (SP,2), (vblank_pc)
+	
 	;jsr print_ex_stack
 	jsr status_bar
 	enable_interrupts
@@ -1010,7 +1017,7 @@ default_interrupt:
 	enable_interrupts
 	rte
 	
-	
+END_PRG:	
 	
 
 	
