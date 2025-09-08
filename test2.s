@@ -45,11 +45,15 @@ drop macro amt
 	endm
 	
 logf3 macro count, str
-	dc.b str
+	dc.b str, "\0"
 	align 2
-	drop count
+	drop #(count*4)
 	endm
-	
+
+push    macro   op
+        move.ATTRIBUTE op,-(sp)
+        endm
+
 RESET_SP:	
 	dc.l	$41FFFC
 RESET_PC:	
@@ -220,34 +224,24 @@ hex_report:
 	movem.l	A4/A1/A0/D7/D3/D1/D0, -(SP)
 	;move.l (edit_addr), D0
 	;bfextu D0{8:24}, D0
-	jsr logf2
-	dc.b "------+00112233445566778899AABBCCDDEEFF\n\0"
-	align 2
+	logf3 0, "------+00112233445566778899AABBCCDDEEFF\n"
 
 	move.l D0, A0
 	move.l #10, D3
 .loop:
 	jsr print_hexl_line
 	;move.b #0, (A4)+
-	move.l A4, -(SP)
-	pea .msg2
-	jsr logf
-	drop 4
+	
+	push.l A4
+	logf3 1, "%s\n\0"
+	
 	dbf D3, .loop
 	;; 
 	
-	pea .msg3
-	jsr logf
-
+	logf3 0, " \n"
+	
 	movem.l	(SP)+, A4/A1/A0/D7/D3/D1/D0
 	rts
-.msg2:
-	dc.b "%s\n\0"
-	align 2
-.msg3:
-	dc.b " \n\0"
-	align 2
-.msg1:
 	
 	
 	
