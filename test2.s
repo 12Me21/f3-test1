@@ -901,8 +901,8 @@ buttons:
 	bset D4, D1
 	movem.l	D4/D3/D2/D1/D0, -(SP)
 	move.l (.blist, D4*4), A0
-	push.l A0
-	logf4 1, "btn jump %x\n"
+	;push.l A0
+	;logf4 1, "btn jump %x\n"
 	jsr (A0)
 	movem.l	(SP)+, D4/D3/D2/D1/D0
 .waiting:
