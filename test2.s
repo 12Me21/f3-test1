@@ -41,13 +41,27 @@ kick_watchdog macro
 	endm
 	
 drop macro amt
+	IF amt<>0
 	lea.l	(amt,SP),SP
+	ENDIF
 	endm
 	
 logf3 macro count, str
+	jsr logf2
 	dc.b str, "\0"
 	align 2
-	drop #(count*4)
+	drop count*4
+	endm
+
+logf4 macro count, str
+	pea .string
+	jsr logf
+	bra .next
+.string:
+	dc.b str, "\0"
+	align 2
+.next:
+	drop count*4
 	endm
 
 push    macro   op
@@ -99,40 +113,28 @@ print_ex_stack:
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l #0, D0
 	move.w (abcd+10),D0
-	move.l 	D0, -(SP)
-	move.l 	(abcd+4), -(SP)
+	push.l D0
+	push.l (abcd+4)
 	move.w (abcd+2),D0
-	move.l D0, -(SP)
-	pea.l .msg
-	jsr logf
-	lea.l	(4*3,SP),SP
+	push.l D0
+	logf4 3, "ex: SR:%04X @:%08X %04X"
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	rts
-.msg:
-	dc.b	"ex: SR:%04X @:%08X %04X\0"
-	align 2
 	
 FAIL_STOP:	
 	stop #$2F00
 	rts
 	
 ex_access:	
-	pea.l .msg
-	jsr logf
-	jsr print_ex_stack
-.msg:
-	dc.b	"mem error!\0"
-	ALIGN 2
-	
-ex_a_line:
-	pea.l .msg
-	jsr logf
+	logf4 0, "mem error!"
 	jsr print_ex_stack
 	rte
-.msg:
-	dc.b	"A-LINE ERROR!\0"
-	ALIGN 2
 	
+ex_a_line:
+	logf4 0, "A-LINE ERROR!"
+	jsr print_ex_stack
+	rte
+
 ex_f_line:
 	pea.l .msg
 	jsr logf
@@ -224,7 +226,7 @@ hex_report:
 	movem.l	A4/A1/A0/D7/D3/D1/D0, -(SP)
 	;move.l (edit_addr), D0
 	;bfextu D0{8:24}, D0
-	logf3 0, "------+00112233445566778899AABBCCDDEEFF\n"
+	logf4 0, "------+00112233445566778899AABBCCDDEEFF\n"
 
 	move.l D0, A0
 	move.l #10, D3
@@ -233,12 +235,12 @@ hex_report:
 	;move.b #0, (A4)+
 	
 	push.l A4
-	logf3 1, "%s\n\0"
+	logf4 1, "%s\n\0"
 	
 	dbf D3, .loop
 	;; 
 	
-	logf3 0, " \n"
+	logf4 0, " \n"
 	
 	movem.l	(SP)+, A4/A1/A0/D7/D3/D1/D0
 	rts
@@ -279,17 +281,15 @@ get_imm_str:
 	;; 
 ;	movea.l (SP)+, A2
 	
-	
-skip_str_imm:						  ;temp
-	movea.l (SP)+, A2
+push_imm_str:						  ;temp
+	movea.l (SP), A2
 .loop:
 	tst.b	(A2)+
 	bne .loop
-	addq.w #1, A2
+	addq.l #1, A2
 	move.l A2, D7
 	bclr.l #0, D7
 	jmp (D7)
-	
 	
 memcpyl:
 .dest equ.l 8
