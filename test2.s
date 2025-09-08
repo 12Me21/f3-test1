@@ -1,6 +1,6 @@
 		CPU 68020
 		SUPMODE ON
-		PADDING OFF
+		PADDING ON
 		ORG $000000
 	
 COLS = 39
@@ -56,8 +56,8 @@ logf3 macro count, str
 
 logf4 macro count, str
 	pea .string
-	jsr logf
-	bra .next
+	pea .next
+	jmp logf
 .string:
 	dc.b str, "\0"
 	align 2
@@ -69,9 +69,9 @@ push    macro   op
         move.ATTRIBUTE op,-(sp)
         endm
 
-RESET_SP:	
+RESET_SP:
 	dc.l	$41FFFC
-RESET_PC:	
+RESET_PC:
 	dc.l	entry
 	org $8
 	dc.l [2]ex_access
@@ -368,7 +368,6 @@ logf:
 	unlk	A6
 	rtd #$4
 	
-	org $10000
 logf2:
 .return = 4
 .rest = 8
@@ -954,6 +953,12 @@ buttons:
 	logf4 2, "\xFF\x02write[%6X] <- %02X\n"
 	rts
 .c:
+	push.l #1
+	push.l #5
+	jsr function
+	;move (SP)+, D0
+	logf4 1, "result: %d\n"
+	
 	rts
 .start:
 	rts
@@ -1029,6 +1034,21 @@ default_interrupt:
 	lea.l	($8,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	rte
+
+function:
+.arg1 = 8+4
+.out1 = 8+4
+.arg2 = 8
+.local1 = 0-4
+   link A6, #-4
+	movem.l D0, -(SP)
+   move.l (.arg1, A6), (.local1, A6)
+	move.l (.arg2, A6), D0
+	add.l D0, (.local1, A6)
+   move.l (.local1, A6), (.out1, A6)
+	movem.l (SP)+, D0
+   unlk A6
+   rtd #4 ; (because there's 1 fewer output than input)
 	
 END_PRG:	
 	
