@@ -882,14 +882,27 @@ buttons:
 	eor.w #-1, D4
 	and.w D4, D3
 	
-;	move.l #7, D1
-;.loop1:
-;	btst D1, D0
-;	bne .not
-;	
-;.not:
-;	dbf D1, .loop1
+	eor.w #-1, D0
 	
+	moveq.l #7, D4
+	moveq.l #0, D1
+.loop1:
+	btst D4, D2
+	beq .notnew
+	bset D4, D1
+	move.b #20, (das,D4)
+	bra .notpressed
+.notnew:
+	btst D4, D0
+	beq .notpressed
+	subi.b #1, (das,D4)
+	bne .waiting
+	bset D4, D1
+	move.b #3, (das,D4)
+.waiting:
+.notpressed:
+	
+	dbf D4, .loop1
 	rts
 .blist:
 	
@@ -898,33 +911,13 @@ buttons:
 process_inputs:
 	;; read buttons
 	jsr buttons.read_p1
-	push.l D3
+	push.l D1
 	logf4 1, "btn: %x\n"
-	rts
-	
-	
-	move.b $4A0007, D0
-	bfextu D0{32-4-0:4}, D1
-	
-	
-	lsl #8, D0
-	move.b $4A0003, D0
-		
-	move.w old_btn, D1
-	move.w D0, old_btn
-	
-	eori.w #-1, D0
-	and.w D0, D1
-	move.w D1, rising_btn
-	;; 
 
-	move.w (old_btn), D6
-	btst.l #4, D6
-	bne .normal
 	;jmp $99999
 	;; special
 	;; 
-	btst.l #1, D1
+	btst.l #4, D1
 	beq .n5
 	;; read
 	bfextu edit_addr{8:24},D0
@@ -939,7 +932,7 @@ process_inputs:
 	move.b D0, edit_addr
 .skip:
 .n5:
-	btst.l #0, D1
+	btst.l #5, D1
 	beq .n6
 	;; write
 	bfextu edit_addr{8:24},D0
@@ -952,9 +945,6 @@ process_inputs:
 	push.l A0
 	logf4 2, "\xFF\x02write[%6X] <- %02X\n"
 .n6:
-
-	bra .ret
-.normal
 	move.w edit, D2
 	btst #2, D1
 	bne .n1
