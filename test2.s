@@ -14,7 +14,7 @@ PVT_Y = $66001A
 PIVOT_PORT = $621000
 LINERAM = $620000
 SPRITE_RAM = $600000
-FIO_0 = $4a0000
+FIO = $4a0000
 PF_CONTROL = $660000
 	
 RAM_BASE = $408000
@@ -27,6 +27,7 @@ old_btn = $400180
 rising_btn = $400184
 edit = $400200
 edit_addr = $400204
+das = $400300
 
 disable_interrupts	macro
 	ori.w #$700, SR
@@ -37,7 +38,7 @@ enable_interrupts	macro
 	endm
 
 kick_watchdog macro
-	move.b	#0, FIO_0
+	move.b	#0, FIO+0
 	endm
 	
 drop macro amt
@@ -136,13 +137,9 @@ ex_a_line:
 	rte
 
 ex_f_line:
-	pea.l .msg
-	jsr logf
+	logf4 0, "F-LINE ERROR!\0"
 	jsr print_ex_stack
 	rte
-.msg:
-	dc.b	"F-LINE ERROR!\0"
-	ALIGN 2
 
 
 	;; D0 - value
@@ -625,12 +622,10 @@ setup_lineram:
 	jsr latch_to_addr
 	
 	;link A6, #0
-	move.l A3, -(SP)
-	move.l D3, -(SP)
-	pea.l .msg
-	jsr logf
+	push.l A3
+	push.l D3
+	logf4 2, "lineram write to: %x %x\n"
 	;unlk A6 ; what if we did this or something instead of the manual drop?
-	drop 4*2
 	
 	bsr write_lineram_block
 	bsr write_lineram_block
@@ -641,9 +636,6 @@ setup_lineram:
 	addi.w #($1<<10), D4
 	dbf D2, .loop1
 	rts
-.msg:
-	dc.b "lineram write to: %x %x\n\0"
-	align 2
 	
 	;789abcdef
 lineram_defaults:
@@ -863,11 +855,61 @@ loop:
 .ret:
 	rts
 	
-process_inputs
-	moveq.l #0, D0
-	move.b $4A0003, D0
-	lsl #8, D0
+	;; let's arrange: 
+	;; up down left right b1 b2 b3 start
+buttons:	
+.read_p1:
+	move.b FIO+2, D0
+	bfextu D0{32-4-1:1}, D0
+	bfins D0, D1{32-7-1:1}
+	move.b FIO+3, D0
+	bfextu D0{32-0-3:3}, D0
+	bfins D0, D1{32-4-3:3}
+	move.b FIO+7, D0
+	bfextu D0{32-0-4:4}, D0
+	bfins D0, D1{32-0-4:4}
+	move D1, D0
+	;; do repeats
+	
+	move.w old_btn, D4
+	move.w D0, old_btn
+	
+	move.w D0, D2
+	eor.w #-1, D2
+	and.w D4, D2
+	
+	move.w D0, D3
+	eor.w #-1, D4
+	and.w D4, D3
+	
+;	move.l #7, D1
+;.loop1:
+;	btst D1, D0
+;	bne .not
+;	
+;.not:
+;	dbf D1, .loop1
+	
+	rts
+.blist:
+	
+	
+	
+process_inputs:
+	;; read buttons
+	jsr buttons.read_p1
+	push.l D3
+	logf4 1, "btn: %x\n"
+	rts
+	
+	
 	move.b $4A0007, D0
+	bfextu D0{32-4-0:4}, D1
+	
+	
+	lsl #8, D0
+	move.b $4A0003, D0
+		
 	move.w old_btn, D1
 	move.w D0, old_btn
 	
@@ -890,11 +932,10 @@ process_inputs
 	bra .skip
 	move.l D0, A0
 	move.l (A0), D0
-	move.l D0, -(SP)
-	move.l A0, -(SP)
-	pea.l .mem_report
-	jsr logf
-	drop 4*2
+	push.l D0
+	push.l A0
+	logf4 2, "\xFF\x04read [%6X] -> %08X\n\0abcdef"
+
 	move.b D0, edit_addr
 .skip:
 .n5:
@@ -907,11 +948,9 @@ process_inputs
 	move.b edit_addr, D0
 	move.b D0, (A0)
 	
-	move.l D0, -(SP)
-	move.l A0, -(SP)
-	pea.l .write_report
-	jsr logf
-	drop 4*2
+	push.l D0
+	push.l A0
+	logf4 2, "\xFF\x02write[%6X] <- %02X\n"
 .n6:
 
 	bra .ret
@@ -944,14 +983,6 @@ process_inputs
 .n4:
 .ret:
 	rts
-
-	
-.mem_report:
-	dc.b "\xFF\x04read [%6X] -> %08X\n\0abcdef"
-	align 2
-.write_report:
-	dc.b "\xFF\x02write[%6X] <- %02X\n\0"
-	align 2
 	
 vblank:
 	disable_interrupts
