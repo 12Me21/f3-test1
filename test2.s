@@ -613,10 +613,12 @@ setup_lineram:
 	dc.b "lineram write to: %x %x\n\0"
 	align 2
 	
+	;789abcdef
 lineram_defaults:
 	dc.w $0000, $0000, $0000, $0000 ;colscroll
 	dc.w $0000, $0000, $0000, $0000 ;clip
-	dc.w $0255, $bbbb, $7000, $0037
+	dc.w $0255, $9bdf, $7000, $0037
+	;; (outdated:)
 	;; pf alpha disabled (00)
 	;; pivot alpha enabled (01,select=1)
 	;; sprites alpha enabled (01,select=1)
@@ -628,7 +630,7 @@ lineram_defaults:
 	;; ok so  select determines: 0 = 2 and 4, 1 = 1 and 3  for itself only?
 	
 	
-	dc.w $0001, $300F|$4000, $F300, $5555 ;7000
+	dc.w $0001, $300F, $0300, $5555 ;7000
 	dc.w $0080, $0080, $0080, $0080 ;pf scale
 	dc.w $0000, $0000, $0000, $0000 ;palette add
 	dc.w $003F, $003F, $003F, $003F ;rowscroll
@@ -869,31 +871,13 @@ process_inputs
 	and.w D0, D1
 	move.w D1, rising_btn
 	;; 
-	move.w edit, D2
-	btst #2, D1
-	bne .n1
-	subi.w #1,D2
-.n1:
-	btst #3, D1
-	bne .n2
-	addi.w #1,D2
-.n2:
-	andi.w #7,D2
-	move.w D2,edit
+
+	move.w (old_btn), D6
+	btst.l #4, D6
+	bne .normal
+	;; special
 	;; 
-	moveq.l #1,D0
-	lsl.l #2,D2
-	lsl.l D2,D0
-	btst #0, D1
-	bne .n3
-	subi.l D0,(edit_addr)
-.n3:
-	btst #1, D1
-	bne .n4
-	addi.l D0,(edit_addr)
-.n4:
-	;; 
-	btst.l #8, D1
+	btst.l #1, D1
 	beq .n5
 	;; read
 	bfextu edit_addr{8:24},D0
@@ -909,7 +893,7 @@ process_inputs
 	move.b D0, edit_addr
 .skip:
 .n5:
-	btst.l #9, D1
+	btst.l #0, D1
 	beq .n6
 	;; write
 	bfextu edit_addr{8:24},D0
@@ -924,6 +908,36 @@ process_inputs
 	jsr logf
 	drop 4*2
 .n6:
+
+	bra .ret
+.normal
+	move.w edit, D2
+	btst #2, D1
+	bne .n1
+	subi.w #1,D2
+.n1:
+	btst #3, D1
+	bne .n2
+	addi.w #1,D2
+.n2:
+	andi.w #7,D2
+	move.w D2,edit
+	;; 
+	moveq.l #1,D0
+	lsl.l #2,D2
+	lsl.l D2,D0
+
+	btst #0, D1
+	bne .n3
+	subi.l D0,(edit_addr)
+.n3:
+	btst #1, D1
+	bne .n4
+	addi.l D0,(edit_addr)
+	
+	;; 
+.n4:
+.ret:
 	rts
 
 	
