@@ -85,7 +85,7 @@ print_ex_stack:
 	move.w (SP,4+0), (abcd+2)
 	move.l (SP,4+2), (abcd+4)
 	move.l (SP,4+6), (abcd+8)
-	disable_interrupts
+	;disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l #0, D0
 	move.w (abcd+10),D0
@@ -102,35 +102,31 @@ print_ex_stack:
 	dc.b	"ex: SR:%04X @:%08X %04X\0"
 	align 2
 	
+FAIL_STOP:	
+	stop #$2F00
+	rts
 	
 ex_access:	
-	disable_interrupts
 	pea.l .msg
 	jsr logf
 	jsr print_ex_stack
-	enable_interrupts
-	rte
 .msg:
 	dc.b	"mem error!\0"
 	ALIGN 2
 	
 ex_a_line:
-	disable_interrupts
 	pea.l .msg
 	jsr logf
 	jsr print_ex_stack
-	enable_interrupts
 	rte
 .msg:
 	dc.b	"A-LINE ERROR!\0"
 	ALIGN 2
 	
 ex_f_line:
-	disable_interrupts
 	pea.l .msg
 	jsr logf
 	jsr print_ex_stack
-	enable_interrupts
 	rte
 .msg:
 	dc.b	"F-LINE ERROR!\0"
@@ -833,7 +829,6 @@ loop:
 	;move.b $4A000B, D0
 	;lsl.w #8, D0
 	;move.b $4A000A, D0
-	
 	;move.l 	D0, -(SP)
 	;move.l 	D0, -(SP)
 	;pea.l s_WAIT_A_MOMENT
@@ -875,6 +870,7 @@ process_inputs
 	move.w (old_btn), D6
 	btst.l #4, D6
 	bne .normal
+	;jmp $99999
 	;; special
 	;; 
 	btst.l #1, D1
@@ -973,7 +969,6 @@ vblank_2:
 	rte
 	
 error:
-	disable_interrupts
 	move.l (SP), (abcd)
 	move.l (SP,4), (abcd+4)
 	move.l (SP,8), (abcd+8)
@@ -983,12 +978,10 @@ error:
 	jsr logf
 	lea.l	($4,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
-	enable_interrupts
 	rte
 	
 inst_error:
 	move.l (SP,2), (abcd)
-	disable_interrupts
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
 	move.l 	(abcd), -(SP)
 	pea.l .msg
@@ -996,7 +989,6 @@ inst_error:
 	lea.l	($4,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	jsr print_ex_stack
-	enable_interrupts
 	rte
 .msg:
 	dc.b	"INST ERROR! %08X\0"
@@ -1004,7 +996,6 @@ inst_error:
 	
 	
 default_interrupt:
-	disable_interrupts
 	move.l (SP), (abcd)
 	move.l (SP,4), (abcd+4)
 	movem.l	A6/A5/A4/A3/A2/A1/A0/D7/D6/D5/D4/D3/D2/D1/D0, -(SP)
@@ -1014,7 +1005,6 @@ default_interrupt:
 	jsr logf
 	lea.l	($8,SP),SP
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
-	enable_interrupts
 	rte
 	
 END_PRG:	
