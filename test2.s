@@ -889,37 +889,49 @@ buttons:
 .loop1:
 	btst D4, D2
 	beq .notnew
-	bset D4, D1
 	move.b #20, (das,D4)
-	bra .notpressed
+	bra .hit
 .notnew:
 	btst D4, D0
-	beq .notpressed
+	beq .waiting
 	subi.b #1, (das,D4)
 	bne .waiting
-	bset D4, D1
 	move.b #3, (das,D4)
+.hit:	
+	bset D4, D1
+	movem.l	D4/D3/D2/D1/D0, -(SP)
+	move.l (.blist, D4*4), A0
+	push.l A0
+	logf4 1, "btn jump %x\n"
+	jsr (A0)
+	movem.l	(SP)+, D4/D3/D2/D1/D0
 .waiting:
-.notpressed:
-	
 	dbf D4, .loop1
-	rts
-.blist:
-	
-	
-	
-process_inputs:
-	;; read buttons
-	jsr buttons.read_p1
-	push.l D1
-	logf4 1, "btn: %x\n"
 
-	;jmp $99999
-	;; special
-	;; 
-	btst.l #4, D1
-	beq .n5
-	;; read
+	rts
+.down:
+	move.w edit, D2
+	lsl #2, D2
+	moveq.l #1, D0
+	lsl.l D2, D0
+	subi.l D0, edit_addr
+	rts
+.up:
+	move.w edit, D2
+	lsl #2, D2
+	moveq.l #1, D0
+	lsl.l D2, D0
+	addi.l D0, edit_addr
+	rts
+.right:
+	subi.w #1, edit
+	andi.w #$7, edit
+	rts
+.left:
+	addi.w #1, edit
+	andi.w #$7, edit
+	rts
+.a:
 	bfextu edit_addr{8:24},D0
 	jsr hex_report
 	bra .skip
@@ -928,50 +940,31 @@ process_inputs:
 	push.l D0
 	push.l A0
 	logf4 2, "\xFF\x04read [%6X] -> %08X\n\0abcdef"
-
 	move.b D0, edit_addr
 .skip:
-.n5:
-	btst.l #5, D1
-	beq .n6
-	;; write
+	rts
+.b:
 	bfextu edit_addr{8:24},D0
 	move.l D0, A0
 	moveq.l #0, D0
 	move.b edit_addr, D0
 	move.b D0, (A0)
-	
 	push.l D0
 	push.l A0
 	logf4 2, "\xFF\x02write[%6X] <- %02X\n"
-.n6:
-	move.w edit, D2
-	btst #2, D1
-	bne .n1
-	subi.w #1,D2
-.n1:
-	btst #3, D1
-	bne .n2
-	addi.w #1,D2
-.n2:
-	andi.w #7,D2
-	move.w D2,edit
-	;; 
-	moveq.l #1,D0
-	lsl.l #2,D2
-	lsl.l D2,D0
-
-	btst #0, D1
-	bne .n3
-	subi.l D0,(edit_addr)
-.n3:
-	btst #1, D1
-	bne .n4
-	addi.l D0,(edit_addr)
+	rts
+.c:
+	rts
+.start:
+	rts
+.blist:
+	dc.l .up, .down, .left, .right, .a, .b, .c, .start
 	
-	;; 
-.n4:
-.ret:
+process_inputs:
+	;; read buttons
+	jsr buttons.read_p1
+	;push.l D1
+	;logf4 1, "btn: %x\n"
 	rts
 	
 vblank:
