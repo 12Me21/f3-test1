@@ -9,6 +9,7 @@ ROM_VECTORS_0:
 	dc.l  [75]exc
 	
 spin:	
+	move.b #12, $140000
 	bra spin
 
 exc:	
@@ -36,5 +37,7 @@ entry:
 .write_vectors:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
+	
+	move.b #12, $140000
 	
 	jmp spin

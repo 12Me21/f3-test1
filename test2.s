@@ -8,6 +8,10 @@ status_height = 2
 row_delta = $80
 cursor_domain = $DFFF
 TEXT_RAM = $61C000
+
+SOUND_RESET_START = $C80100
+SOUND_RESET_END = $C80000
+SHARED_RAM = $C00000
 	
 PVT_X = $660018
 PVT_Y = $66001A
@@ -728,6 +732,16 @@ setup_sprites:
 	dc.w $3BE5, $0000, $0000, $0000, $7805, $0000, $0000, $0000
 	dc.w $0000, $0000, $0000, $0000, $7005, $0000, $0000, $0000
 	
+setup_sound:	
+	clr.w SOUND_RESET_START 	  ;ideally, we could load into a register and then do clr.w (A0)+ ... clr.w (A0)
+	lea SHARED_RAM, A1
+	move.w #($200-1), D1
+.loop:
+	clr.l (A1)+
+	dbf D1, .loop
+	clr.w SOUND_RESET_END
+	rts
+
 load_game_font:
 	lea font_def, A0
 	lea $61E000, A1
@@ -792,6 +806,8 @@ entry:
 	clr.l (A0)+
 	dbf D0, .loop1
 	;;
+	jsr	setup_sound
+	
 	jsr 	setup_sprites
 	jsr	setup_scroll
 	jsr	setup_pivot_port
@@ -958,6 +974,13 @@ buttons:
 	jsr function
 	;move (SP)+, D0
 	logf4 1, "result: %d\n"
+	;0100 1000 0111 1000 
+	;dc.w $4878, $ABCD
+	pea ($7BCD).w
+	move.l ($7BCD).w, D0
+;	push.l A0
+	logf4 1, "addr: %x\n"
+	
 	
 	rts
 .start:
