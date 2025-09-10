@@ -9,6 +9,12 @@ duart_jump_on_recv_B = $d518
 duart_D528 = $D528
 duart_D526 = $D526
 
+send_buffer = $D684
+send_buffer_end = $D6A4
+send_buffer_write_ptr = $D6A4
+send_buffer_read_ptr = $D6A6
+send_buffer_length = $D6A8
+
 duart_jump_on_recv_A = $D900
 duart_D904 = $D904
 duart_D906 = $D906
@@ -17,23 +23,31 @@ duart_D90E = $D90E
 duart_D90F = $D90F
 duart_FB12 = $FB12		;byte array
 duart_FB14 = $FB14 		; hm
+
+
 	
 move_D0_SR	Macro
 	dc.w $A000
 	Endm
 	
+	org $C00000
+	dc.l  [64]exc
+	org $C00000
 ROM_VECTORS_0:
-	dc.l	$00000000
-	dc.l	entry
-	dc.l  [62]exc
+	dc.l $000000
+	dc.l entry
+	org $C00028
+	dc.l Line_a
 	org $C00100
 USER_INT_0:	
 	dc.l exc
-	
+	;;  todo
+
 	org $C00400
-	dc.l Line_a
-	
-	org $C00400
+spin:	
+	;; [more FB12]
+	stop #$2000
+	bra spin
 
 exc:	
 	rte
@@ -75,7 +89,10 @@ entry:
 
 	
 entry_duart:	
-	move.l #.user_int0_first, USER_INT_0
+	move.l #user_int0.finish_user_int0, duart_jump_on_recv_A
+	move.l #user_int0.finish_user_int0, duart_jump_on_recv_B
+
+	move.l #.user_int0_first, (USER_INT_0 & $FFFF)
 	
 	lea DUART_0, A4
 	move.b #$40, (A4, DUART_IVR) ; idk why we set this, seems like we always just go to user interrupt 0?
@@ -91,7 +108,7 @@ entry_duart:
 	bra .after
 	
 .user_int0_first:
-	move.l #user_int0, USER_INT_0
+	move.l #user_int0, (USER_INT_0 & $FFFF)
 	lea DUART_0, A4
 	move.b #$00, (A4, DUART_IMR) ; disable interrupts
 	tst.b (A4, DUART_STOP_C)     ; stop counter
@@ -106,13 +123,7 @@ entry_duart:
 	bsr duart_f26
 	;; [stuff with FB12 etc]
 	jmp spin
-	
-spin:	
-	;; [more FB12]
-	stop #$2000
-	bra spin
-	
-	
+		
 user_int0:	
 	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
 	lea DUART_0, A4
@@ -130,13 +141,16 @@ user_int0:
 	move.w #$FF91, D0
 	;trap #0 		; triggers a reset ? why
 	rte
+.finish_user_int0:
+	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
+	rte
 .b_rx_ready:
 	move.b (A4, DUART_SRB), D1
 	and.b #$50, D1
 	beq.b .framing_and_overrun_ok
 	;; got framing error or overrun error, reset?
 	bsr duart_40c
-	bra finish_user_int0
+	bra .finish_user_int0
 .framing_and_overrun_ok:
 	moveq #0, D1
 	moveq #0, D2
@@ -161,7 +175,7 @@ user_int0:
 	;trap #9 		; do something with A5 and A1 linked list related
 .d90f_ne:
 	bsr duart_130c
-	bra finish_user_int0
+	bra .finish_user_int0
 .no_errors_a:
 	moveq #0, D1
 	move.b (A4, DUART_RBA), D1
@@ -188,9 +202,9 @@ user_int0:
 	bra .later
 .cf5c_nonzero:
 	cmp.b #1, D0
-	bne cf5c_not_1
+	bne .cf5c_not_1
 	cmp.b $CF5A, D1
-	bne duart_12fe
+	bne .duart_12fe
 	clr.w duart_D904
 	bra.b .later
 .cf5c_not_1:
@@ -212,7 +226,7 @@ user_int0:
 	cmp.b #3, D0
 	bne .cf5c_not_3
 	cmp.b #$8, D1
-	bcc duart_12fe
+	bcc .duart_12fe
 	move.w D1, duart_D904
 	bra .later
 .cf5c_not_3:
@@ -222,14 +236,14 @@ user_int0:
 .later:
 	and.w #$70, D2 		; extract: [1xxx ....] - set state to x in table 1 (note; won't be state 7)
 	lsr.w #2, D2
-	lea rx_a_80_states, A0
+	lea .rx_a_80_states, A0
 	move.l (0, A0, D2*1), (duart_jump_on_recv_A)
-	bra.w finish_user_int0
+	bra.w .finish_user_int0
 .rx_a_F0: 			; byte matched [1111 xxxx] - jump to behavior x in table 2 immediately
 	move.w D2, D1
 	and.w #$F, D2
 	lsl.w #2, D2
-	lea rx_a_F0_actions, A0
+	lea .rx_a_F0_actions, A0
 	lea (0, A0, D2*1), A0
 	jmp (A0)
 .a_tx_ready:
@@ -241,7 +255,7 @@ user_int0:
 	move.b #$08, (A4, DUART_IMR) ; enable interrupts: timer ready
 .cc:
 	;move.w A5, $D8FC
-	bra.w finish_user_int0
+	bra.w .finish_user_int0
 .timer_ready:
 	tst.b (A4, DUART_STOP_C) ; stop counter
 	;; dont care
@@ -252,11 +266,24 @@ user_int0:
 	;; etc etc
 	bsr duart_send_1_from_buffer
 	;; etc
-	bra finish_user_int0
-	
-finish_user_int0:	
-	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
-	rte
+	bra .finish_user_int0
+.duart_12fe:	
+	bsr .duart_1304
+	bra .finish_user_int0
+.duart_1304:	
+	move.l (SP)+, duart_jump_on_recv_A
+	bra .finish_user_int0
+.rx_a_80_states:
+.rx_a_F0_actions:
+
+duart_1318:
+	move.l #user_int0.duart_12fe, duart_jump_on_recv_A
+	rts
+duart_130c:	
+	move.w #$FF, duart_D90C
+	bsr duart_1318
+	bsr duart_e86
+	rts
 
 duart_40c:	
 	bsr duart_45c
@@ -267,10 +294,14 @@ duart_40c:
 	move.l #16666, D3
 	bsr idle
 	bsr duart_eac
-	move.l #duart_process_byte_1, duart_jump_on_recv_B
+	move.l #duart_process_b, duart_jump_on_recv_B
 	bsr duart_45c
 	rts
 	
+duart_process_b:
+	;; ...
+	bra.w user_int0.finish_user_int0
+
 duart_45c:	
 	lea DUART_0, A4
 	move.b #$80, D0 	; flash  OPR7
@@ -375,8 +406,8 @@ duart_1026:
 	rts
 	
 send_buffer_reset:
-	move.l #send_buffer, send_buffer_write_ptr
-	move.l #send_buffer, send_buffer_read_ptr
+	move.w #send_buffer, send_buffer_write_ptr
+	move.w #send_buffer, send_buffer_read_ptr
 	clr.b send_buffer_length
 	move.l #166666, D3
 	bsr idle
@@ -431,13 +462,13 @@ duart_send_1:
 duart_send_1_from_buffer:	
 	tst.b send_buffer_length
 	beq .send_buffer_empty
-	move.l send_buffer_read_ptr, A0
+	move.w send_buffer_read_ptr, A0
 	move.b (A0)+, (A4, DUART_TBB)
 	cmpa #send_buffer_end, A0
 	bcs .not_wrap
 	lea send_buffer, A0
 .not_wrap:
-	move.l A0, send_buffer_read_ptr
+	move.w A0, send_buffer_read_ptr
 	subq.b #1, send_buffer_length
 	bne .send_buffer_not_empty
 	bclr.b #1, duart_FB14
@@ -448,21 +479,11 @@ duart_send_1_from_buffer:
 	move.b #$08, (A4, DUART_CRB) ; CND: transmitter disabled
 .ret:
 	rts
-	
-duart_12fe:	
-	bsr duart_1304
-	bra finish_user_int0
-	
-duart_1304:	
-	move.l (SP)+, duart_jump_on_recv_A
-	bra finish_user_int0
 
-duart_130c:	
-	move.w #$FF, duart_D90C
-	bsr duart_1318
-	bsr duart_e86
-	rts
-	
-duart_1318:	
-	move.l #duart_12fe, duart_jump_on_recv_A
+idle:	
+	nop
+	nop
+	nop
+	subq.l #1, D3
+	bne idle
 	rts
