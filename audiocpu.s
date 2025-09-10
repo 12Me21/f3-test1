@@ -8,6 +8,7 @@ DUART_0 = $280000
 duart_D528 = $D528 		;variable
 duart_D526 = $D526 		;variable	
 duart_D90C = $D90C 		;variable
+duart_FB12 = $FB12		;byte array
 	
 move_D0_SR	Macro
 	dc.w $A000
@@ -131,10 +132,39 @@ user_int0:
 	moveq #0, D0
 	jmp (A0)
 .a_rx_ready_or_delta_break_a:
-	and.b #$4, D1
-	bne .delta_break_a
+	and.b #$04, D1 		; why not btst..
+	bne .didnt_a		;if delta break
+	move.b (A4, DUART_SRA), D0
+	beq .didnt_a		;if status bits all 0
+	and.b #$F0, D0
+	beq .no_errors_a
+.didnt_a:
+	tas duart_d90f
+	bne .d90f_ne
+	;trap #3 		; get linked list head into A5 and do other things
+	;move.w #$4, (A5, 2) 	; write data to something in linked list
+	;move.w #$fb54, A1
+	;trap #9 		; do something with A5 and A1 linked list related
+.d90f_ne:
+	bsr duart_130c
+	bra finish_user_int0
+.a_tx_ready:
+	;lea $D8FC, A5
+	;trap #4
+	;lea $fb96, A1
+	;jsr c10cf6  does a bunch of things with A1 but thats it
+	;bcc .cc
+	move.b #$08, (A4, DUART_IMR) ; enable interrupts: timer ready
+.cc:
+	;move.w A5, $D8FC
+	bra.w finish_user_int0
+.timer_ready:
+	tst.b (A4, DUART_STOP_C) ; stop counter
+	lea duart_FB12, A0
+	move.w #0, D0
+.loop2:
 	
-	...
+	
 	
 finish_user_int0:	
 	movem.l -(SP), A5/A4/A2/A1/A0/D3/D2/D1/D0
