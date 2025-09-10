@@ -5,8 +5,11 @@
 
 	Include "duart-68000.s"
 DUART_0 = $280000
+duart_jump_on_recv_B = $d518
 duart_D528 = $D528
 duart_D526 = $D526
+
+duart_jump_on_recv_A = $D900
 duart_D904 = $D904
 duart_D906 = $D906
 duart_D90C = $D90C
@@ -14,7 +17,6 @@ duart_D90E = $D90E
 duart_D90F = $D90F
 duart_FB12 = $FB12		;byte array
 duart_FB14 = $FB14 		; hm
-duart_jump_on_recv_B = $d518
 	
 move_D0_SR	Macro
 	dc.w $A000
@@ -161,17 +163,20 @@ user_int0:
 	bsr duart_130c
 	bra finish_user_int0
 .no_errors_a:
-	moveq.w #0, D1
+	moveq #0, D1
 	move.b (A4, DUART_RBA), D1
 	bmi .rx_a_minus
+	;; if [0... ....] - do normal thing
 	movea.l duart_jump_on_recv_A, A0
 	jmp (A0)
-.rx_a_minus:
+.rx_a_minus: 	
+	; matches [1... ....]
 	clr.b duart_D90F
 	move.w D1, D2
 	and.w #$70, D1
 	cmp.b #$70, D1
-	beq.w .rx_a_70 		; matches [.111 ....]
+	beq.w .rx_a_F0 		; jump if matches [1111 ....]
+	;; otherwise: 
 	move.w D2, D1
 	and.w #$0F, D1
 	move.w D1, duart_D906
@@ -215,11 +220,18 @@ user_int0:
 	and.b #$F, D1
 	bra .loop3
 .later:
-	and.w #$70, D2 		; extract: [.XXX ....] -> long array index
+	and.w #$70, D2 		; extract: [1xxx ....] - set state to x in table 1 (note; won't be state 7)
 	lsr.w #2, D2
-	movea.l #$c11820, A0
+	lea rx_a_80_states, A0
 	move.l (0, A0, D2*1), (duart_jump_on_recv_A)
 	bra.w finish_user_int0
+.rx_a_F0: 			; byte matched [1111 xxxx] - jump to behavior x in table 2 immediately
+	move.w D2, D1
+	and.w #$F, D2
+	lsl.w #2, D2
+	lea rx_a_F0_actions, A0
+	lea (0, A0, D2*1), A0
+	jmp (A0)
 .a_tx_ready:
 	;lea $D8FC, A5
 	;trap #4
