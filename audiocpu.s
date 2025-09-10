@@ -3,12 +3,18 @@
 		PADDING ON
 		ORG $C00000
 
-Include "duart-68000.s"
+	Include "duart-68000.s"
 DUART_0 = $280000
-duart_D528 = $D528 		;variable
-duart_D526 = $D526 		;variable	
-duart_D90C = $D90C 		;variable
+duart_D528 = $D528
+duart_D526 = $D526
+duart_D904 = $D904
+duart_D906 = $D906
+duart_D90C = $D90C
+duart_D90E = $D90E
+duart_D90F = $D90F
 duart_FB12 = $FB12		;byte array
+duart_FB14 = $FB14 		; hm
+duart_jump_on_recv_B = $d518
 	
 move_D0_SR	Macro
 	dc.w $A000
@@ -26,9 +32,6 @@ USER_INT_0:
 	dc.l Line_a
 	
 	org $C00400
-spin:	
-	move.b #12, $140000
-	bra spin
 
 exc:	
 	rte
@@ -64,7 +67,7 @@ entry:
 	
 	move.b #12, $140000
 	
-	jmp spin
+	jmp entry_duart
 	
 	
 
@@ -83,20 +86,30 @@ entry_duart:
 	
 	stop #$2000 		; wait for interrupt
 	ori #$700, SR		; disable interrupts
-	
-	clr.b duart_D528
-	;; [check otis stuff]
-	tas duart_D528 		;should be conditional on the otis check
-	bsr duart_f26
+	bra .after
 	
 .user_int0_first:
-	move.l #user_int0_after, USER_INT_0
+	move.l #user_int0, USER_INT_0
 	lea DUART_0, A4
 	move.b #$00, (A4, DUART_IMR) ; disable interrupts
 	tst.b (A4, DUART_STOP_C)     ; stop counter
 	move.b #$60, (A4, DUART_ACR) ; Timer mode, use external clock (4mhz)
 	;; also do otis stuff here
 	rte
+.after:
+	
+	clr.b duart_D528
+	;; [check otis stuff]
+	tas duart_D528 		;should be conditional on the otis check
+	bsr duart_f26
+	;; [stuff with FB12 etc]
+	jmp spin
+	
+spin:	
+	;; [more FB12]
+	stop #$2000
+	bra spin
+	
 	
 user_int0:	
 	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
@@ -112,9 +125,8 @@ user_int0:
 	bne .a_tx_ready
 	btst.l #3, D0
 	bne .timer_ready
-	moveq #$FF91, D0
-	trap #0
-	...
+	move.w #$FF91, D0
+	;trap #0 		; triggers a reset ? why
 	rte
 .b_rx_ready:
 	move.b (A4, DUART_SRB), D1
@@ -128,7 +140,7 @@ user_int0:
 	moveq #0, D2
 	move.b (A4, DUART_RBB), D1
 	bsr duart_45c
-	lea #duart_jump_on_recv_B, A0
+	lea duart_jump_on_recv_B, A0
 	moveq #0, D0
 	jmp (A0)
 .a_rx_ready_or_delta_break_a:
@@ -139,7 +151,7 @@ user_int0:
 	and.b #$F0, D0
 	beq .no_errors_a
 .didnt_a:
-	tas duart_d90f
+	tas duart_D90F
 	bne .d90f_ne
 	;trap #3 		; get linked list head into A5 and do other things
 	;move.w #$4, (A5, 2) 	; write data to something in linked list
@@ -148,6 +160,40 @@ user_int0:
 .d90f_ne:
 	bsr duart_130c
 	bra finish_user_int0
+.no_errors_a:
+	moveq.w #0, D1
+	move.b (A4, DUART_RBA), D1
+	bmi .rx_a_minus
+	movea.l duart_jump_on_recv_A, A0
+	jmp (A0)
+.rx_a_minus:
+	clr.b duart_D90F
+	move.w D1, D2
+	and.w #$70, D1
+	cmp.b #$70, D1
+	beq.w .rx_a_70 		; matches [.111 ....]
+	move.w D2, D1
+	and.w #$0F, D1
+	move.w D1, duart_D906
+	move.b $CF5C, D0
+	clr.b duart_D90E
+	cmp.b #0, D0
+	bne .cf5c_nonzero
+	clr.w duart_D904
+	bra .later
+.cf5c_nonzero:
+	cmp.b #1, D0
+	bne cf5c_not_1
+	cmp.b $CF5A, D1
+	bne duart_12fe
+	clr.w duart_D904
+	bra.b .later
+.cf5c_not_1:
+	
+	...
+.later:
+	...
+	bra.w finish_user_int0
 .a_tx_ready:
 	;lea $D8FC, A5
 	;trap #4
@@ -160,14 +206,18 @@ user_int0:
 	bra.w finish_user_int0
 .timer_ready:
 	tst.b (A4, DUART_STOP_C) ; stop counter
-	lea duart_FB12, A0
-	move.w #0, D0
-.loop2:
-	
-	
+	;; dont care
+	;lea duart_FB12, A0
+	;move.w #0, D0
+;.loop2:
+	;move.w 
+	;; etc etc
+	bsr duart_send_1_from_buffer
+	;; etc
+	bra finish_user_int0
 	
 finish_user_int0:	
-	movem.l -(SP), A5/A4/A2/A1/A0/D3/D2/D1/D0
+	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
 	rte
 
 duart_40c:	
@@ -289,7 +339,7 @@ duart_1026:
 send_buffer_reset:
 	move.l #send_buffer, send_buffer_write_ptr
 	move.l #send_buffer, send_buffer_read_ptr
-	clr.w send_buffer_length
+	clr.b send_buffer_length
 	move.l #166666, D3
 	bsr idle
 	move.b #$80, D0
@@ -319,8 +369,8 @@ duart_11a6:
 .loop:
 	move.b (0, A1, D1*1), D0
 	bsr duart_send_1
-	add.w 1, D1
-	cmp.w 8, D1
+	add.w #1, D1
+	cmp.w #8, D1
 	bne .loop
 	move.b #$81, D0
 	bsr duart_send_1
@@ -339,7 +389,28 @@ duart_send_1:
 	beq .wait_for_txready
 	move.b #$08, (A4, DUART_CRB) ; CMD: transmitter disabled
 	rts
-
+	
+duart_send_1_from_buffer:	
+	tst.b send_buffer_length
+	beq .send_buffer_empty
+	move.l send_buffer_read_ptr, A0
+	move.b (A0)+, (A4, DUART_TBB)
+	cmpa #send_buffer_end, A0
+	bcs .not_wrap
+	lea send_buffer, A0
+.not_wrap:
+	move.l A0, send_buffer_read_ptr
+	subq.b #1, send_buffer_length
+	bne .send_buffer_not_empty
+	bclr.b #1, duart_FB14
+	bra .send_buffer_empty
+.send_buffer_not_empty:
+	bra .ret
+.send_buffer_empty:
+	move.b #$08, (A4, DUART_CRB) ; CND: transmitter disabled
+.ret:
+	rts
+	
 duart_12fe:	
 	bsr duart_1304
 	bra finish_user_int0
