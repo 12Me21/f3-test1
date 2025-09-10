@@ -2,6 +2,8 @@
 		SUPMODE ON
 		PADDING ON
 		ORG $C00000
+
+Include "duart-68000.s"
 	
 ROM_VECTORS_0:
 	dc.l	$00000000
@@ -41,3 +43,5 @@ entry:
 	move.b #12, $140000
 	
 	jmp spin
+	
+	
