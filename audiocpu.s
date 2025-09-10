@@ -99,7 +99,28 @@ entry_duart:
 user_int0_after:	
 	
 	rte
+
+duart_40c:	
+	bsr duart_45c
+	move.b #$94, D0
+	bsr duart_send_1
+	move.b #$FF, D0
+	bsr duart_send_1
+	move.l #16666, D3
+	bsr idle
+	bsr duart_eac
+	move.l #duart_process_byte_1, duart_jump_on_recv_B
+	bsr duart_45c
+	rts
 	
+duart_45c:	
+	lea DUART_0, A4
+	move.b #$80, D0 	; flash  OPR7
+	move.b D0, (A4, DUART_OPR_RES)
+	move.b D0, (A4, DUART_OPR_SET)
+	move.b D0, (A4, DUART_OPR_RES)
+	rts
+
 duart_e22:	
 	lea DUART_0, A4
 	move.b #$00, (A4, DUART_IMR) ; disable interrupts
@@ -190,5 +211,62 @@ duart_1026:
 	bne .ret
 	bsr duart_eac
 	bsr send_buffer_reset
+	bsr duart_40c
+	bsr duart_11a6
 .ret:
 	rts
+	
+send_buffer_reset:
+	move.l #send_buffer, send_buffer_write_ptr
+	move.l #send_buffer, send_buffer_read_ptr
+	clr.w send_buffer_length
+	move.l #166666, D3
+	bsr idle
+	move.b #$80, D0
+	bsr duart_send_1
+	move.l #8000, D3
+	bsr idle
+	rts
+	
+data_C0818A:
+	dc.b $02, $02, $02, $02, $02, $0e, $12, $0c
+	;; 00000010
+	;; 00000010
+	;; 00000010
+	;; 00000010
+	;; 00000010
+	;; 00001110
+	;; 00010010
+	;; 00001100
+	;; send 93, 0C, 8 bytes, 81, 83
+duart_11a6:	
+	move.b #$93, D0
+	bsr duart_send_1
+	move.b #$0C, D0
+	bsr duart_send_1
+	lea data_C0818A, A1
+	moveq.l #0, D1
+.loop:
+	move.b (0, A1, D1*1), D0
+	bsr duart_send_1
+	add.w 1, D1
+	cmp.w 8, D1
+	bne .loop
+	move.b #$81, D0
+	bsr duart_send_1
+	;; maybe address here
+	move.b #$83, D0
+	bsr duart_send_1
+	rts
+
+duart_send_1:	
+	lea DUART_0, A4
+	;; channel B:
+	move.b #$04, (A4, DUART_CRB) ; CMD: transmitter enabled
+	move.b D0, (A4, DUART_TBB)   ; push byte to transmit buffer
+.wait_for_txready:
+	btst.b #3, (A4, DUART_SRB)   ; check status, TxRDY
+	beq .wait_for_txready
+	move.b #$08, (A4, DUART_CRB) ; CMD: transmitter disabled
+	rts
+	
