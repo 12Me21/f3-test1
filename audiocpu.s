@@ -130,6 +130,11 @@ user_int0:
 	lea #duart_jump_on_recv_B, A0
 	moveq #0, D0
 	jmp (A0)
+.a_rx_ready_or_delta_break_a:
+	and.b #$4, D1
+	bne .delta_break_a
+	
+	...
 	
 finish_user_int0:	
 	movem.l -(SP), A5/A4/A2/A1/A0/D3/D2/D1/D0
