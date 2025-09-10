@@ -7,7 +7,8 @@ Include "duart-68000.s"
 DUART_0 = $280000
 duart_D528 = $D528 		;variable
 duart_D526 = $D526 		;variable	
-
+duart_D90C = $D90C 		;variable
+	
 move_D0_SR	Macro
 	dc.w $A000
 	Endm
@@ -96,8 +97,42 @@ entry_duart:
 	;; also do otis stuff here
 	rte
 	
-user_int0_after:	
+user_int0:	
+	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
+	lea DUART_0, A4
+	;; check ISR
+	move.b (A4, DUART_ISR), D0
+	move.b D0, D1
+	btst.l #5, D0
+	bne .b_rx_ready
+	and.b #$06, D1
+	bne .a_rx_ready_or_delta_break_a
+	btst.l #0, D0
+	bne .a_tx_ready
+	btst.l #3, D0
+	bne .timer_ready
+	moveq #$FF91, D0
+	trap #0
+	...
+	rte
+.b_rx_ready:
+	move.b (A4, DUART_SRB), D1
+	and.b #$50, D1
+	beq.b .framing_and_overrun_ok
+	;; got framing error or overrun error, reset?
+	bsr duart_40c
+	bra finish_user_int0
+.framing_and_overrun_ok:
+	moveq #0, D1
+	moveq #0, D2
+	move.b (A4, DUART_RBB), D1
+	bsr duart_45c
+	lea #duart_jump_on_recv_B, A0
+	moveq #0, D0
+	jmp (A0)
 	
+finish_user_int0:	
+	movem.l -(SP), A5/A4/A2/A1/A0/D3/D2/D1/D0
 	rte
 
 duart_40c:	
@@ -193,7 +228,7 @@ duart_f26:
 .ne:
 	bsr duart_f60
 	bsr duart_1026
-	...
+	bsr duart_130c
 	rts
 	
 duart_f60:
@@ -239,7 +274,7 @@ data_C0818A:
 	;; 00010010
 	;; 00001100
 	;; send 93, 0C, 8 bytes, 81, 83
-duart_11a6:	
+duart_11a6:
 	move.b #$93, D0
 	bsr duart_send_1
 	move.b #$0C, D0
@@ -269,4 +304,21 @@ duart_send_1:
 	beq .wait_for_txready
 	move.b #$08, (A4, DUART_CRB) ; CMD: transmitter disabled
 	rts
+
+duart_12fe:	
+	bsr duart_1304
+	bra finish_user_int0
 	
+duart_1304:	
+	move.l (SP)+, duart_jump_on_recv_A
+	bra finish_user_int0
+
+duart_130c:	
+	move.w #$FF, duart_D90C
+	bsr duart_1318
+	bsr duart_e86
+	rts
+	
+duart_1318:	
+	move.l #duart_12fe, duart_jump_on_recv_A
+	rts
