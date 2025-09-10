@@ -2,77 +2,77 @@
 
 DUART	Struct
 	dc.b	?
-	Union
+	Union								  ; 0 (0)
 MRA	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 1 (2)
 SRA	dc.b	?
 CSRA	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 2 (4)
 CRA	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 3 (6)
 RBA	dc.b	?
 TBA	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 4 (8)
 IPCR	dc.b	?
 ACR	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 5 (a)
 ISR	dc.b	?
 IMR	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 6 (c)
 CUR	dc.b	?
 CTUR	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 7 (e)
 CLR	dc.b	?
 CTLR	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 8 (10)
 MRB	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; 9 (12)
 SRB	dc.b	?
 CSRB	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; A (14)
 CRB	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; B (16)
 RBB	dc.b	?
 TBB	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; C (18)
 IVR	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; D (1a)
 INPUT	dc.b	?
 OPCR	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; E (1c)
 START_C	dc.b	?
 OPR_SET	dc.b	?
 	Endunion
 	dc.b	?
-	Union
+	Union								  ; F (1e)
 STOP_C	dc.b	?
 OPR_RES	dc.b	?
 	Endunion
