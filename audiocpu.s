@@ -189,10 +189,36 @@ user_int0:
 	clr.w duart_D904
 	bra.b .later
 .cf5c_not_1:
-	
-	...
+	cmp.b #2, D0
+	bne .cf5c_not_2
+.loop3:
+	;; [check struct things]
+	;bne duart_12fe
+	move.w D0, duart_D904
+	bra .later
+.cf5c_not_2:	
+	sub.b $C5FA, D1
+	and.b #$F, D1
+	cmp.b #$F, D1
+	bne .a
+	move.b D1, duart_D90E
+	bra .later
+.a:
+	cmp.b #3, D0
+	bne .cf5c_not_3
+	cmp.b #$8, D1
+	bcc duart_12fe
+	move.w D1, duart_D904
+	bra .later
+.cf5c_not_3:
+	add.b $CF5A, D1
+	and.b #$F, D1
+	bra .loop3
 .later:
-	...
+	and.w #$70, D2 		; extract: [.XXX ....] -> long array index
+	lsr.w #2, D2
+	movea.l #$c11820, A0
+	move.l (0, A0, D2*1), (duart_jump_on_recv_A)
 	bra.w finish_user_int0
 .a_tx_ready:
 	;lea $D8FC, A5
