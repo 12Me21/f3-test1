@@ -1,0 +1,34 @@
+palettes:
+
+BBBBBBBBWWWWWWWW
+BBBBWWWWBBBBWWWW
+BBWWBBWWBBWWBBWW
+BWBWBWBWBWBWBWBW
+
+combine 4 glyphs into 1
+
+256 total -> 64 total !
+
+
+or what about 2 into 1? but with antialiasing hmm
+
+.BBBGGGWWW......
+.BGWBGWBGW......
+
+
+ok so the layout is:
+
+dc.l $00111000, $01212100, $01111100, $13222310
+dc.l $12111210, $12111210, $13222310, $01111100
+
+(top left ->)
+pixels
+[0000 1111 2222 3333]
+bitplanes (probably)
+[0123 0123 0123 0123]
+
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+---------------------------------------
+aaaaa.|bbBBbbBBbbBBbbBBbbBBbbBBbbBBbbBB
+aaaaa.

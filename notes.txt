@@ -1,0 +1,28 @@
+ram to reset:
+- fio
+ - 4A0000 = 00 (watchdog)
+ - 4A0006 = FF
+ - 4A0016 = 00
+ - 4A0004 = 00
+ - 4A0014 = 00
+- timer register
+ - 4C0000 = 0000
+- pf size control
+ - 66001E = 0080
+- pivot port
+ - 621000 = 00F0
+ - 621002-621FFE = 0000
+- line ram mapping/latches
+ - map to standard regions
+ - set latches (note: we have to check whether it actually latches from the 0th entry or just the first visible one (24?)
+- line ram itself
+ - turn off sprites, tiles, pixel
+ - normal blend values
+ - palette mode
+- font
+- text ram
+- sprite ram
+ - set flipscreen!
+ 
+optional:
+- tile ram

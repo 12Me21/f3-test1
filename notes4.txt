@@ -1,0 +1,25 @@
+ok so data transfer rates, let's calculate
+over the B port, we can get a baud rate of 1mhz (this is also the maximum of the duart itself)
+though who knows if we can even read that fast. so let's see:
+
+at 1Mbaud, each byte takes
+0.00001 second (10 bits)
+
+move.b (An), Dn ; 12 cycles
+move.b (An), (An) ; 16 cycles - in practice we need this
+(same for autoincrement modes)
+so, our top speed is
+
+0.0000007875 seconds per byte
+
+i.e.
+10000ns vs 787.5ns
+
+
+<< 10000/787.5002707032180542312061419771112
+> 12.69840833333333333333333333333334
+
+huh.. it repeats when  oh nevermind whatever
+
+
+anyway so we are 12x faster than we need to be. so the bottleneck will be the uart for sure
