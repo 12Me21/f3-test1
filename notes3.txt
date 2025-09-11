@@ -25,3 +25,18 @@ move.b #$40, ($C<<1,A0)
 
 
 
+ugh i'm so tired..
+i want to just go through and rewrite this now, without copying the original code
+- init ram
+- disable otis
+- disable esp
+- set up duart registers (enable channel b only)
+- etc.
+
+we want:
+- read input bytes, send them to dpram
+- send output bytes for printing info
+- some way for the main cpu to also talk in the other direction? (this is less important and maybe we should just like, beyond a status code, not worry about this)
+
+and then
+
