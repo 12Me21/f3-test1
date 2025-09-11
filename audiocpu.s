@@ -319,7 +319,7 @@ duart_e22:
 	move.b #$10, (A4, DUART_CRA) ; COMMAND: reset MRA pointer
 	move.b #$13, (A4, DUART_MRA) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off
 	move.b #$07, (A4, DUART_MRA) ; - stop bit length = 1.0, CTS off, Tx RTS off, channel mode normal
-	move.b #$EE, (A4, DUART_CSRA); - baud rate: TX = IP3 16X, RX = IP3 16X (IP3 is 0.5mhz -> 31250 baud i think)
+	move.b #$EE, (A4, DUART_CSRA); - baud rate: TX = IP3 16X, RX = IP4 16X (IP3/4 are 0.5mhz -> 31250 baud i think)
 	move.b #$01, (A4, DUART_CRA) ; COMMAND: reciever enabled
 	move.b #$30, (A4, DUART_CRA) ; COMMAND: reset transmitter
 	move.b #$08, (A4, DUART_CRA) ; COMMAND: transmitter disabled
@@ -366,7 +366,7 @@ duart_eac:
 	move.b #$13, (A4, DUART_MRB) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off 
 	move.b #$0F, (A4, DUART_MRB) ; - stop bit length = 2.0, CTS off, Tx RTS off, channel mode normal
 duart_ed4:			     ;maybe fake label
-	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP3 16X, RX = IP3 16X (IP3 is 0.5mhz -> 31250 baud i think)
+	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
 	move.b #$05, (A4, DUART_CRB) ;CMD: transmitter enabled, reciever enabled
 	rts
 	
