@@ -14,7 +14,14 @@ move.b #$8, ($A,A0)
 
 - let's ignore the otis and esp for now i guess.
 
+DUART struct
+      db
+MRA   db
+DUART endstruct
 
 
 lea $280000+1, A0
 move.b #$40, ($C<<1,A0)
+
+
+
