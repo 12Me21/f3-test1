@@ -23,3 +23,66 @@ huh.. it repeats when  oh nevermind whatever
 
 
 anyway so we are 12x faster than we need to be. so the bottleneck will be the uart for sure
+
+anyway, because the audio cpu is somewhat slower than the main cpu (due to, i imagine the main factor is lack of caching)
+we should copy the data over in minimal format.. 
+well actually, idk. really we should use its power to some extent, after all we have a good amount of overhead.
+
+but anyway, let's consider the protocol for sending data from the audiocpu to main cpu.
+i suppose we could do something like
+
+move.b (A1), D0 [...1]
+swap D0 [.1..]
+move.b (A1), D0 [.1.2]
+rol.l #8, D0 [1.2.]  - wait this is actually really slow wow
+move.b (A1), D0 [1.23]
+swap D0 [231.]
+move.b (A1), D0 [2314]
+
+ok so maybe not  guys we dont even have a damn barrel shifter in here
+
+honestly let's worry less about speed and just focus on making this work.
+
+so let's have a message system where each message can fit in shared ram so we don't have to worry about wrapping
+
+that's 0x800 bytes
+
+and alignment isnt really important since we have an 8-bit bus anyway
+
+so maybe like
+
+1 byte for the message type
+3 bytes for dest address
+1 byte length
+... data
+
+and then  so how does the main cpu know we've received a message?
+well.. the obvious thing would just be to use shared ram. we just have a loop where we read a byte there until it's a certain value. hey we can finally use CAS lol.
+but, then we're keeping it busy a lot.
+we could do some hack like  connect an output on the duart to an input on the fio and then have another way to communicate.. 
+whatever let's not worry about that.
+
+so:
+audiocpu listens to duart
+copies bytes into shared ram, then sets a flag when it's done
+main cpu reads that flag repeatedly (well at least we can just put this in a vsync interrupt so it doesnt happen too often), then reads shared ram and executes the commands
+now, one other thing is
+does the audiocpu care if the main cpu is done processing yet. presumably this shouldn't happen but.
+maybe we do want a circular buffer then. or at least 2 buffers in shared ram.
+actually no it should just be fine, as long as we don't have any commands that expand too much. since like, we can just
+even if the audio cpu starts writing before we're done, the cpu should always read faster  i guess?
+hmm....
+what if instead we just copy the data out of shared ram immediately, into normal ram, and then process it?
+to guarantee it'll be read as fast as possible.
+
+
+main cpu interrupt:
+lea SHARED_RAM_0+$800-1, A0
+move.l #0, D0
+move.l #1, D5
+cas D0,D5,(A0)
+beq .ret
+<now read the data>
+.ret:
+rte
+
