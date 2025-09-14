@@ -1107,3 +1107,7 @@ sprite_palette:
 	dc.l $000000, $B7B7B7, $9F9F9F, $7F7F7F, $DFDFDF, $FFFFFF, $EFEFEF, $DFDFE7, $CFCFDF, $BFBFD7, $AFAFC7, $9F9FBF, $8F8FB7, $7F7FAF, $6F6FA7, $5F5F9F
 	dc.l $000000, $FFFF67, $FFE707, $FFAF07, $FFFFA7, $FFFFFF, $E7DFDF, $CFC7C7, $B7AFAF, $9F9797, $877F7F, $6F6767, $574F4F, $3F3737, $271F1F, $170707
 	dc.l $000000, $7F97E7, $FF0707, $C7EFFF, $FF976F, $67777F, $7F8757, $97972F, $AFA707, $B7BF07, $B7CF07, $CFDF37, $D7E767, $E7EF97, $E7EFC7, $FFFFFF
+
+	movem.w	D4/D3/D2/D1/D0, (A0) ; ah but this still increments
+	;; like i thought maybe we could do
+	movem.w (A0), D0/D1/D2/D3/D4/D5/D6/D7 ; to do 8 consecutive reads very fast! but no it still increments A0, i believe.
