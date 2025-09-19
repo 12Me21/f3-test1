@@ -1,6 +1,6 @@
 set -e
 cd ~/Code/mame2/twelve
-#make
+make
 cp test2.bin ~/Code/mame2/roms/all/twelve-test1.bin
 cp audiocpu2.bin ~/Code/mame2/roms/all/twelve-audiocpu1
 cd ~/Code/mame2

@@ -12,7 +12,7 @@ R9 rc.w ?							  ;12
 R10 rc.w ?							  ;14
 R11 rc.w ?							  ;16
 R12 rc.w ?							  ;18
-R13 rc.w ?							  ;1a
-R14 rc.w ?							  ;1c
-R15 rc.w ?							  ;1e
+ACT rc.w ?							  ;1a
+IRQV rc.w ?							  ;1c
+PAGE rc.w ?							  ;1e
 OTIS Endstruct

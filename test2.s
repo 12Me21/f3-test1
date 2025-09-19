@@ -969,6 +969,18 @@ buttons:
 	logf4 2, "\xFF\x02write[%6X] <- %02X\n"
 	rts
 .c:
+	lea 0, A0
+	movem.l (A0), D0/D1/D2
+	push.l D0
+	push.l D1
+	push.l D2
+	logf4 3, "movem: %x,%x,%x\n"
+	movem.l (A0), D0/D1/D2
+	push.l D0
+	push.l D1
+	push.l D2
+	logf4 3, "movem: %x,%x,%x\n"
+	rts
 	push.l #1
 	push.l #5
 	jsr function

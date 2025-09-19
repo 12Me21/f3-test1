@@ -294,4 +294,5 @@ idle:
 write_to_send_buffer:	
 	ori #$0700, SR
 	cmpi.b #$20, send_buffer_length
-	bcs 
+										  ;bcs 
+	rts
