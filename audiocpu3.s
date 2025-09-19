@@ -11,7 +11,7 @@ DPRAM_0 = $140000
 ESP_HALT = $26003F
 spin_pointer = $1000
 
-VECTOR_USER_0 = $0100
+VECTOR_USER_0 = $100
 	
 	Org $C00000
 	dc.l  [64]exc
@@ -67,14 +67,14 @@ entry:
 	jmp spin
 	
 user_0:	
-	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
+	;movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
 	lea DUART_0, A4
 	move.b (A4, DUART_ISR), D0
 	btst #5, D0
 	beq .n1
 	jsr b_rx_ready
 .n1:
-	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
+	;movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
 	rte
 
 b_rx_ready:	
@@ -89,6 +89,7 @@ b_rx_ready:
 	move.l spin_pointer, A1
 	move.b D1, (A1)+
 	move.l A1, spin_pointer
+	andi.w #$FF, (spin_pointer+2)
 	rts
 	
 setup_duart:
@@ -96,18 +97,18 @@ setup_duart:
 	move.l #DPRAM_0, spin_pointer
 	
 	lea DUART_0, A4
-	move.b #$40, (A4, DUART_IVR) ; idk why we set this, seems like we always just go to user interrupt 0?
+	move.b #(VECTOR_USER_0/4), (A4, DUART_IVR) ; set interrupt vector number
+	;; set up channel B 
+	move.b #DUART_CR_RESET_RX, (A4, DUART_CRB)
+	move.b #DUART_CR_RESET_TX, (A4, DUART_CRB)
+	move.b #DUART_CR_RESET_ERR, (A4, DUART_CRB)
+	move.b #DUART_CR_RESET_BCI, (A4, DUART_CRB)
 	
-	move.b #$20, (A4, DUART_CRB)	;CMD: reset reciever
-	move.b #$30, (A4, DUART_CRB)	;CMD: reset transmitter
-	move.b #$40, (A4, DUART_CRB)	;CMD: reset error status
-	move.b #$50, (A4, DUART_CRB)	;CMD: reset break change interrupt
-	
-	move.b #$10, (A4, DUART_CRB)	;CMD: reset MRB pointer
+	move.b #DUART_CR_RESET_MR, (A4, DUART_CRB)
 	move.b #$13, (A4, DUART_MRB) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off 
 	move.b #$0F, (A4, DUART_MRB) ; - stop bit length = 2.0, CTS off, Tx RTS off, channel mode normal
 	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
-	move.b #$05, (A4, DUART_CRB) ;CMD: transmitter enabled, reciever enabled
+	move.b #(DUART_CR_ENABLE_RX | DUART_CR_ENABLE_TX), (A4, DUART_CRB)
 	
 	move.b #(1<<5), (A4, DUART_IMR) ; enable interrupt RxRDY B
 	
@@ -161,7 +162,7 @@ setup_esp:
 	;; ok so this clears OPR[6], which is connected to pal8.3
 	;; but do we ever actually SET it? there is a function to do so but idk if/when it's called
 	;; also idk what it does
-	;move.b #$40, DUART_0+DUART_OPR_RES
+	move.b #$40, DUART_0+DUART_OPR_RES
 	
 	move.b #2, ESP_HALT
 	rts

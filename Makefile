@@ -5,6 +5,7 @@ P2BIN = p2bin
 all: test2.bin audiocpu3.bin
 
 test2.o: font2.s
+audiocpu3.o: duart-68000.s otis.s
 
 %.o: %.s
 	$(AS) $< $(ASFLAGS) -o $@
