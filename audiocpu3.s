@@ -7,7 +7,11 @@
 	Include "otis.s"
 DUART_0 = $280000
 OTIS_0 = $200000
+DPRAM_0 = $140000
 ESP_HALT = $26003F
+spin_pointer = $1000
+
+VECTOR_USER_0 = $0100
 	
 	Org $C00000
 	dc.l  [64]exc
@@ -18,7 +22,6 @@ ROM_VECTORS_0:
 ;	Org $C00028
 ;	dc.l Line_a
 	org $C00100
-USER_INT_0:	
 	dc.l exc
 	;;  todo
 
@@ -63,6 +66,61 @@ entry:
 	
 	jmp spin
 	
+user_0:	
+	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
+	lea DUART_0, A4
+	move.b (A4, DUART_ISR), D0
+	btst #5, D0
+	bne b_rx_ready
+	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
+	rte
+
+b_rx_ready:	
+	move.b (A4, DUART_SRB), D1
+	and.b #$50, D1
+	beq.b .framing_and_overrun_ok
+	jsr setup_duart
+	rts
+.framing_and_overrun_ok:
+	moveq #0, D1
+	move.b (A4, DUART_RBB), D1
+	jsr duart_flash_op7
+	move.l spin_pointer, A1
+	move.b D1, (A1)+
+	move.l A1, spin_pointer
+	rts
+	
+;; why?
+duart_flash_op7:
+	lea DUART_0, A4
+	move.b #$80, D0 	; flash  OPR7
+	move.b D0, (A4, DUART_OPR_RES)
+	move.b D0, (A4, DUART_OPR_SET)
+	move.b D0, (A4, DUART_OPR_RES)
+	rts
+
+setup_duart:
+	move.l #user_0, VECTOR_USER_0
+	move.l #DPRAM_0, spin_pointer
+	
+	lea DUART_0, A4
+	move.b #$40, (A4, DUART_IVR) ; idk why we set this, seems like we always just go to user interrupt 0?
+	
+	move.b #$20, (A4, DUART_CRB)	;CMD: reset reciever
+	move.b #$30, (A4, DUART_CRB)	;CMD: reset transmitter
+	move.b #$40, (A4, DUART_CRB)	;CMD: reset error status
+	move.b #$50, (A4, DUART_CRB)	;CMD: reset break change interrupt
+	
+	move.b #$10, (A4, DUART_CRB)	;CMD: reset MRB pointer
+	move.b #$13, (A4, DUART_MRB) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off 
+	move.b #$0F, (A4, DUART_MRB) ; - stop bit length = 2.0, CTS off, Tx RTS off, channel mode normal
+	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
+	move.b #$05, (A4, DUART_CRB) ;CMD: transmitter enabled, reciever enabled
+	
+	move.b #(1<<5), (A4, DUART_IMR) ; enable interrupt RxRDY B
+	
+	rts
+	
 setup_otis:	
 	lea OTIS_0, A4
 	move.w #64, (A4, OTIS_PAGE)
@@ -89,6 +147,9 @@ setup_otis:
 	dbf D0, .loop_B
 	dbf D7, .loop_voices
 	;; irq something?
+	;; can we even get interrupts from the otis?
+	;; i cant see what code would handle that, we have user int 0, which only does duart
+	;; and then everything else is an unexpected event
 	move.w (A4, OTIS_IRQV), D0
 	move.w #$A0, D0
 .delay:
@@ -103,16 +164,12 @@ setup_otis:
 	dc.w -1, -1
 	dc.w 0, 0
 	dc.l -513
-	
-
-
 
 setup_esp:
 	;; ok so this clears OPR[6], which is connected to pal8.3
 	;; but do we ever actually SET it? there is a function to do so but idk if/when it's called
 	;; also idk what it does
-	move.b #$40, DUART_0+DUART_OPR_RES
+	;move.b #$40, DUART_0+DUART_OPR_RES
 	
 	move.b #2, ESP_HALT
 	rts
-
