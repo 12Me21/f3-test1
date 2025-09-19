@@ -169,7 +169,8 @@ duart_40c_reset_b:
 duart_process_b:
 	;; ...
 	bra.w user_int0.finish
-
+	
+	;; on the SQ-1 i think this relates to the display but on the F3 i am pretty sure it is unconnected
 duart_45c_flash_op7:	
 	lea DUART_0, A4
 	move.b #$80, D0 	; flash  OPR7

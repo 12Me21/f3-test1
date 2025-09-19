@@ -819,7 +819,7 @@ entry:
 	
 	jsr log_adj_scroll
 	move.l #0, edit
-	move.l #0, edit_addr
+	move.l #$C00000, edit_addr
 	
 	moveq.l #6, D6
 	;enable_interrupts

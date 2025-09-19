@@ -84,21 +84,11 @@ b_rx_ready:
 .framing_and_overrun_ok:
 	moveq #0, D1
 	move.b (A4, DUART_RBB), D1
-	jsr duart_flash_op7
 	move.l spin_pointer, A1
 	move.b D1, (A1)+
 	move.l A1, spin_pointer
 	rts
 	
-;; why?
-duart_flash_op7:
-	lea DUART_0, A4
-	move.b #$80, D0 	; flash  OPR7
-	move.b D0, (A4, DUART_OPR_RES)
-	move.b D0, (A4, DUART_OPR_SET)
-	move.b D0, (A4, DUART_OPR_RES)
-	rts
-
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
 	move.l #DPRAM_0, spin_pointer
@@ -153,7 +143,7 @@ setup_otis:
 	move.w (A4, OTIS_IRQV), D0
 	move.w #$A0, D0
 .delay:
-	dbf, D0, .delay
+	dbf D0, .delay
 	move.w (A4, OTIS_IRQV), D0
 	;; [sometimes here we set ACT to 0x14]
 	rts
