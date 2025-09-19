@@ -71,7 +71,9 @@ user_0:
 	lea DUART_0, A4
 	move.b (A4, DUART_ISR), D0
 	btst #5, D0
-	bne b_rx_ready
+	beq .n1
+	jsr b_rx_ready
+.n1:
 	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
 	rte
 
