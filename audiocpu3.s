@@ -12,6 +12,17 @@ ESP_HALT = $26003F
 spin_pointer = $1000
 
 VECTOR_USER_0 = $100
+
+
+disable_interrupts	macro
+	ori.w #$700, SR
+	endm
+
+enable_interrupts	macro
+	andi.w #(~$700), SR
+	endm
+
+
 	
 	Org $C00000
 	dc.l  [64]exc
@@ -166,3 +177,56 @@ setup_esp:
 	
 	move.b #2, ESP_HALT
 	rts
+	
+
+buffer_start = $2000
+buffer_end = buffer_start+100
+buffer_read_ptr = buffer_end
+buffer_write_ptr = buffer_end+2
+buffer_filled = buffer_end+4
+	
+buffer_setup:	
+	move.b #0, buffer_filled
+	move.w buffer_start, buffer_read_ptr
+	move.w buffer_start, buffer_write_ptr
+	rts
+	
+	;; D0, A0
+buffer_push:
+	movea.w buffer_write_ptr, A0
+	move.b D0, (A0)+
+	bsr buffer_wrap_a0
+	move.w A0, buffer_write_ptr
+	addq.b #1, buffer_filled
+	;; enable channel B TX
+	;; presumably this means like, we will get a tx ready interrupt soon?
+	;move.b #DUART_CR_ENABLE_TX, DUART_0+DUART_CRB
+	rts
+	
+buffer_wrap_a0:	
+	cmpa.w #buffer_end, A0
+	bcs .ok
+	lea.w buffer_start, A0
+.ok:
+	rts
+	
+	;; D0, A0
+buffer_pop:	
+	tst.b buffer_filled
+	beq .empy
+	movea.w buffer_read_ptr, A0
+	move.b (A0)+, D0
+	bsr buffer_wrap_a0
+	move.w A0, buffer_read_ptr
+	subq.b #1, buffer_filled
+	beq empy
+;; [not empty]
+	rts
+.empy:
+	; move.b #DUART_CR_DISABLE_TX, DUART_0+DUART_CRB
+	rts
+	
+	
+buffer_send_1:	
+	bsr buffer_pop
+	
