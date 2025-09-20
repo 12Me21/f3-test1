@@ -71,21 +71,33 @@ entry:
 	
 	move.b #12, $140000
 	
+	jsr buffer_setup
 	jsr setup_duart
 	jsr setup_otis
 	jsr setup_esp
 	
+	move.b 'H', D0
+	jsr buffer_push_1
+	move.b 'i', D0
+	jsr buffer_push_1
+	move.b '!', D0
+	jsr buffer_push_1
+
 	jmp spin
 	
 user_0:	
-	;movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
+	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
 	lea DUART_0, A4
 	move.b (A4, DUART_ISR), D0
 	btst #5, D0
 	beq .n1
 	jsr b_rx_ready
 .n1:
-	;movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
+	btst #3, D0 					  ; 
+	beq .n2
+	jsr timer_ready
+.n2:
+	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
 	rte
 
 b_rx_ready:	
@@ -121,7 +133,12 @@ setup_duart:
 	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
 	move.b #(DUART_CR_ENABLE_RX | DUART_CR_ENABLE_TX), (A4, DUART_CRB)
 	
-	move.b #(1<<5), (A4, DUART_IMR) ; enable interrupt RxRDY B
+	;; set up timer
+	move.w #2500, D0
+	movep.w D0, (A4, DUART_CTUR)
+	move.b #$60, (A4, DUART_ACR) ; Timer mode, use external clock (4mhz)
+	;; enable interrupts: RxRDYB and counter
+	move.b #(DUART_IMR_RX_B | DUART_IMR_COUNTER), (A4, DUART_IMR)
 	
 	rts
 	
@@ -187,8 +204,8 @@ buffer_filled = buffer_end+4
 	
 buffer_setup:	
 	move.b #0, buffer_filled
-	move.w buffer_start, buffer_read_ptr
-	move.w buffer_start, buffer_write_ptr
+	move.w #buffer_start, buffer_read_ptr
+	move.w #buffer_start, buffer_write_ptr
 	rts
 	
 	;; D0, A0
@@ -198,35 +215,45 @@ buffer_push:
 	bsr buffer_wrap_a0
 	move.w A0, buffer_write_ptr
 	addq.b #1, buffer_filled
-	;; enable channel B TX
-	;; presumably this means like, we will get a tx ready interrupt soon?
-	;move.b #DUART_CR_ENABLE_TX, DUART_0+DUART_CRB
 	rts
 	
 buffer_wrap_a0:	
 	cmpa.w #buffer_end, A0
 	bcs .ok
-	lea.w buffer_start, A0
+	move.w #buffer_start, A0
 .ok:
 	rts
 	
 	;; D0, A0
 buffer_pop:	
-	tst.b buffer_filled
-	beq .empy
 	movea.w buffer_read_ptr, A0
 	move.b (A0)+, D0
 	bsr buffer_wrap_a0
 	move.w A0, buffer_read_ptr
 	subq.b #1, buffer_filled
-	beq empy
-;; [not empty]
 	rts
-.empy:
-	; move.b #DUART_CR_DISABLE_TX, DUART_0+DUART_CRB
-	rts
-	
 	
 buffer_send_1:	
+	lea DUART_0, A4
+	tst.b buffer_filled
+	beq .empy
 	bsr buffer_pop
+	move.b #DUART_CR_DISABLE_TX, (A4, DUART_TBB)
+	tst.b buffer_filled
+	beq .empy
+	rts
+.empy:
+	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
+	rts
 	
+	;; D0
+buffer_push_1:	
+	lea DUART_0, A4
+	bsr buffer_push
+	move.b #DUART_CR_ENABLE_TX, (A4, DUART_CRB)
+	rts
+	
+timer_ready:	
+	tst.b (A4, DUART_STOP_C) ; acknowledge interrupt
+	jsr buffer_send_1
+	rts
