@@ -10,6 +10,7 @@ OTIS_0 = $200000
 DPRAM_0 = $140000
 ESP_HALT = $26003F
 spin_pointer = $1000
+parser_state = $1500
 
 VECTOR_USER_0 = $100
 
@@ -46,8 +47,6 @@ exc:
 	
 	
 entry:	
-	move.b #12, DPRAM_0
-	
 	moveq.l #$7F, D0
 	move.l D0, D1
 	neg.l D1
@@ -96,6 +95,7 @@ user_0:
 .n1:
 	btst #3, D0 					  ; 
 	beq .n2
+	tst.b (A4, DUART_STOP_C) ; acknowledge interrupt
 	jsr timer_ready
 .n2:
 	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
@@ -108,11 +108,14 @@ b_rx_ready:
 	jsr setup_duart
 	rts
 .framing_and_overrun_ok:
+	move.b (A4, DUART_RBB), D0
+	move.l parser_state, A0
+	jmp (A0)
 	rts
-	moveq #0, D1
-	move.b (A4, DUART_RBB), D1
+	
+parser_default:	
 	move.l spin_pointer, A1
-	move.b D1, (A1)+
+	move.b D0, (A1)+
 	move.l A1, spin_pointer
 	andi.w #$FF, (spin_pointer+2)
 	rts
@@ -120,6 +123,7 @@ b_rx_ready:
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
 	move.l #DPRAM_0, spin_pointer
+	move.l #parser_default, parser_state
 	
 	lea DUART_0, A4
 	move.b #(VECTOR_USER_0/4), (A4, DUART_IVR) ; set interrupt vector number
@@ -256,6 +260,5 @@ buffer_push_1:
 	rts
 	
 timer_ready:	
-	tst.b (A4, DUART_STOP_C) ; acknowledge interrupt
 	jsr buffer_send_1
 	rts
