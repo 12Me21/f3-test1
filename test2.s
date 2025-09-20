@@ -788,7 +788,7 @@ entry:
 	lea (RAM_BASE).l, A5
 	nop
 	move.l #TEXT_RAM, cursor
-	
+	clr.l counter1
 	; setup fio
 	move.b #0,$4a0000
 	move.b #0,$4a0006
