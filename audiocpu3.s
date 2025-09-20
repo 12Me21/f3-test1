@@ -76,11 +76,11 @@ entry:
 	jsr setup_otis
 	jsr setup_esp
 	
-	move.b 'H', D0
+	move.b #'H', D0
 	jsr buffer_push_1
-	move.b 'i', D0
+	move.b #'i', D0
 	jsr buffer_push_1
-	move.b '!', D0
+	move.b #'!', D0
 	jsr buffer_push_1
 
 	jmp spin
@@ -210,7 +210,7 @@ buffer_setup:
 	
 	;; D0, A0
 buffer_push:
-	movea.w buffer_write_ptr, A0
+	move.w buffer_write_ptr, A0
 	move.b D0, (A0)+
 	bsr buffer_wrap_a0
 	move.w A0, buffer_write_ptr
@@ -226,7 +226,7 @@ buffer_wrap_a0:
 	
 	;; D0, A0
 buffer_pop:	
-	movea.w buffer_read_ptr, A0
+	move.w buffer_read_ptr, A0
 	move.b (A0)+, D0
 	bsr buffer_wrap_a0
 	move.w A0, buffer_read_ptr
@@ -238,7 +238,7 @@ buffer_send_1:
 	tst.b buffer_filled
 	beq .empy
 	bsr buffer_pop
-	move.b #DUART_CR_DISABLE_TX, (A4, DUART_TBB)
+	move.b D0, (A4, DUART_TBB)
 	tst.b buffer_filled
 	beq .empy
 	rts
