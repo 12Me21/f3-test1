@@ -11,9 +11,10 @@ DPRAM_0 = $140000
 ESP_HALT = $26003F
 spin_pointer = $1000
 parser_state = $1500
-
+parser_next = parser_state+4 	  ;eventually this is gonna have to be a stack tbh
+parser_acc = parser_command+4
+	
 VECTOR_USER_0 = $100
-
 
 disable_interrupts	macro
 	ori.w #$700, SR
@@ -86,7 +87,8 @@ entry:
 	jmp spin
 	
 user_0:	
-	movem.l A5/A4/A2/A1/A0/D3/D2/D1/D0, -(SP)
+	movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)
+	clr.l D0
 	lea DUART_0, A4
 	move.b (A4, DUART_ISR), D0
 	btst #5, D0
@@ -98,7 +100,7 @@ user_0:
 	tst.b (A4, DUART_STOP_C) ; acknowledge interrupt
 	jsr timer_ready
 .n2:
-	movem.l (SP)+, A5/A4/A2/A1/A0/D3/D2/D1/D0
+	movem.l (SP)+, A5/A4/A2/A1/A0/D5/D3/D2/D1/D0
 	rte
 
 b_rx_ready:	
@@ -108,19 +110,66 @@ b_rx_ready:
 	jsr setup_duart
 	rts
 .framing_and_overrun_ok:
-	move.b (A4, DUART_RBB), D0
+	clr.l D5
+	move.b (A4, DUART_RBB), D5
 	move.l parser_state, A0
 	jmp (A0)
 	rts
 	
 parser_default:
+	cmp.b #'p', D5
+	bne .n1
+	move.l #ps_address, parser_state
+	move.l #ps_command_p, parser_next
+	clr.l parser_acc
+.n1:
+	
 	move.l spin_pointer, A1
-	move.b D0, (A1)
+	move.b D5, (A1)
 	adda.w #2, A1
 	move.l A1, spin_pointer
 	andi.w #$1FF, (spin_pointer+2)
 	move.w (spin_pointer+2), D0
 	move.b D0, (DPRAM_0+256*2)
+	rts
+	
+HEX_TABLE:	
+	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
+	Align 2
+	
+ps_address:	
+	move.w D5, D0
+	subi.w #(.test-HEX_TABLE), D0
+.test:
+	move.b (PC, D0), D0
+	bmi .end
+	move.l parser_acc, D2
+	lsl.l #4, D2
+	add.b D0, D2
+	move.l D2, parser_acc
+	rts
+.end:
+	move.l parser_next, A0
+	jmp (A0)
+	rts
+	
+NUMBER_TO_HEX:	
+	dc.s "0123456789ABCDEFG"
+	Align 2
+	;; D0
+to_hex:	
+	subi.w #(.test-NUMBER_TO_HEX), D0
+.test:
+	move.b (PC, D0), D0
+	rts
+	
+ps_command_p:	
+	move.b #'@', D0
+	jsr buffer_push_1
+	move.l parser_acc, D1
+	
+	jsr buffer_push_1
+	
 	rts
 
 setup_duart:
