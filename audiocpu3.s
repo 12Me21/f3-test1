@@ -69,7 +69,7 @@ entry:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
 	
-	move.b #12, $140000
+	move.b #12, DPRAM_0
 	
 	jsr buffer_setup
 	jsr setup_duart
