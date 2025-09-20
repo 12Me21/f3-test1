@@ -1,5 +1,6 @@
 AS = asl
 ASFLAGS = -i . -i .. -n -U -q +t 70 -r 3
+# what the heck does +t 70 do?
 P2BIN = p2bin
 
 all: test2.bin audiocpu3.bin
@@ -8,7 +9,7 @@ test2.o: font2.s
 audiocpu3.o: duart-68000.s otis.s
 
 %.o: %.s
-	$(AS) $< $(ASFLAGS) -o $@
+	$(AS) $< $(ASFLAGS) -L -o $@
 
 audiocpu3.bin: audiocpu3.o
 	$(P2BIN) $< $@ -r 0xC00000-0xC7FFFF

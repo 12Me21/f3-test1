@@ -25,11 +25,10 @@ enable_interrupts	macro
 
 	
 	Org $C00000
-	dc.l  [64]exc
-	Org $C00000
 ROM_VECTORS_0:
 	dc.l $000000
 	dc.l entry
+	dc.l  [64-2]exc
 ;	Org $C00028
 ;	dc.l Line_a
 	org $C00100
@@ -47,6 +46,8 @@ exc:
 	
 	
 entry:	
+	move.b #12, DPRAM_0
+	
 	moveq.l #$7F, D0
 	move.l D0, D1
 	neg.l D1
@@ -60,7 +61,7 @@ entry:
 .check1_fail:
 	bne .wait
 	
-	movea.l (ROM_VECTORS_0), SP
+	movea.l ROM_VECTORS_0, SP
 	
 	moveq.l #76, D1
 	lea ROM_VECTORS_0, A1
@@ -107,6 +108,7 @@ b_rx_ready:
 	jsr setup_duart
 	rts
 .framing_and_overrun_ok:
+	rts
 	moveq #0, D1
 	move.b (A4, DUART_RBB), D1
 	move.l spin_pointer, A1
