@@ -12,7 +12,8 @@ ESP_HALT = $26003F
 spin_pointer = $1000
 parser_state = $1500
 parser_next = parser_state+4 	  ;eventually this is gonna have to be a stack tbh
-parser_acc = parser_command+4
+parser_acc = parser_next+4
+parser_acc_len = parser_acc+4
 	
 VECTOR_USER_0 = $100
 
@@ -116,13 +117,17 @@ b_rx_ready:
 	jmp (A0)
 	rts
 	
-parser_default:
-	cmp.b #'p', D5
+ps_default:
+	cmp.b #'A', D5
 	bne .n1
 	move.l #ps_address, parser_state
 	move.l #ps_command_p, parser_next
+	move.w #3-1, parser_acc_len
 	clr.l parser_acc
+	rts
 .n1:
+	move.b #'~', D0
+	jsr buffer_push_1
 	
 	move.l spin_pointer, A1
 	move.b D5, (A1)
@@ -133,49 +138,86 @@ parser_default:
 	move.b D0, (DPRAM_0+256*2)
 	rts
 	
-HEX_TABLE:	
-	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
-	Align 2
+;HEX_TABLE:	
+;	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
+;	Align 2
 	
 ps_address:	
-	move.w D5, D0
-	subi.w #(.test-HEX_TABLE), D0
-.test:
-	move.b (PC, D0), D0
-	bmi .end
+;	move.w D5, D0
+;	subi.w #(.test-HEX_TABLE), D0
+;.test:
+;	move.b (PC, D0), D0
+;	bmi .end
 	move.l parser_acc, D2
-	lsl.l #4, D2
-	add.b D0, D2
+	lsl.l #8, D2
+	add.b D5, D2
 	move.l D2, parser_acc
+	subq.w #1, parser_acc_len
+	bmi .end
 	rts
 .end:
-	move.l parser_next, A0
-	jmp (A0)
+	move.l parser_next, parser_state
 	rts
 	
+	;; D0 -> D0
 NUMBER_TO_HEX:	
 	dc.s "0123456789ABCDEFG"
 	Align 2
-	;; D0
 to_hex:	
+	;; [.... .... .... 0000 0000 0000 hhhh llll]
+	ror.l #4, D0
+	;; [llll .... .... .... 0000 0000 0000 hhhh]
+	;; work on the upper half
 	subi.w #(.test-NUMBER_TO_HEX), D0
 .test:
 	move.b (PC, D0), D0
+	;; [llll .... .... .... 1111 1111 HHHH HHHH]
+	;; now:
+	swap D0
+	;; [1111 1111 HHHH HHHH llll .... .... ....]
+	rol.w #4, D0
+	;; [1111 1111 HHHH HHHH .... .... .... llll]
+	subi.w #(.test2-NUMBER_TO_HEX), D0
+.test2:
+	move.b (PC, D0), D0
+	;; [1111 1111 HHHH HHHH 1111 1111 LLLL LLLL]
 	rts
 	
 ps_command_p:	
 	move.b #'@', D0
-	jsr buffer_push_1
-	move.l parser_acc, D1
+	bsr buffer_push_1
 	
+	clr.l D0
+	move.b parser_acc+1, D0
+	bsr to_hex
+	bsr buffer_push_1
+	swap D0
+	bsr buffer_push_1
+	
+	clr.l D0
+	move.b parser_acc+2, D0
+	bsr to_hex
+	bsr buffer_push_1
+	swap D0
+	bsr buffer_push_1
+
+	clr.l D0
+	move.b parser_acc+3, D0
+	bsr to_hex
+	bsr buffer_push_1
+	swap D0
+	bsr buffer_push_1
+
+	move.b #'\n', D0
 	jsr buffer_push_1
 	
+	move.l #ps_default, parser_state
 	rts
 
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
 	move.l #DPRAM_0, spin_pointer
-	move.l #parser_default, parser_state
+	move.l #ps_default, parser_state
 	
 	lea DUART_0, A4
 	move.b #(VECTOR_USER_0/4), (A4, DUART_IVR) ; set interrupt vector number
