@@ -113,13 +113,16 @@ b_rx_ready:
 	jmp (A0)
 	rts
 	
-parser_default:	
+parser_default:
 	move.l spin_pointer, A1
-	move.b D0, (A1)+
+	move.b D0, (A1)
+	adda.w #2, A1
 	move.l A1, spin_pointer
-	andi.w #$FF, (spin_pointer+2)
+	andi.w #$1FF, (spin_pointer+2)
+	move.w (spin_pointer+2), D0
+	move.b D0, (DPRAM_0+256*2)
 	rts
-	
+
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
 	move.l #DPRAM_0, spin_pointer
@@ -261,4 +264,21 @@ buffer_push_1:
 	
 timer_ready:	
 	jsr buffer_send_1
+	rts
+	
+;todo:
+DPRAM_SEND_BUFFER = DPRAM_0
+DPRAM_RECV_BUFFER = DPRAM_0+$100
+DPRAM_WRITE_PTR = DPRAM_0+$200
+DPRAM_READ_PTR = DPRAM_0+$201
+dpram_write_pointer = $1000
+dpram_read_pointer = $1004
+
+dpram_setup:	
+	move.b $00, DPRAM_WRITE_PTR
+	move.b $00, DPRAM_READ_PTR
+	rts
+
+	;; D0
+dpram_send:	
 	rts
