@@ -56,6 +56,14 @@ ROM_VECTORS_0:
 spin:	
 	stop #$2000
 	bra spin
+	
+idle:	
+	nop
+	nop
+	nop
+	subq.l #1, D3
+	bne idle
+	rts
 
 exc:	
 	rte
@@ -94,7 +102,7 @@ entry:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
 	
-	move.b #12, DPRAM_0
+	move.b #15, DPRAM_0
 	
 	jsr buffer_setup
 	jsr setup_duart
@@ -127,10 +135,21 @@ b_rx_ready:
 	and.b #$50, D1
 	beq.b .framing_and_overrun_ok
 	jsr setup_duart
+	puts_imm "Bad"
 	rts
 .framing_and_overrun_ok:
 	clr.l D5
 	move.b (A4, DUART_RBB), D5
+	;; print recvd character
+	move.l spin_pointer, A1
+	move.b D5, (A1)
+	adda.w #2, A1
+	move.l A1, spin_pointer
+	andi.w #$1FF, (spin_pointer+2)
+	move.w (spin_pointer+2), D0
+	move.b D0, (DPRAM_0+256*2)
+	
+parser_retry:
 	move.l parser_state, A0
 	jmp (A0)
 	rts
@@ -155,13 +174,6 @@ ps_default:
 	move.b #'~', D0
 	jsr buffer_push_1
 	
-	move.l spin_pointer, A1
-	move.b D5, (A1)
-	adda.w #2, A1
-	move.l A1, spin_pointer
-	andi.w #$1FF, (spin_pointer+2)
-	move.w (spin_pointer+2), D0
-	move.b D0, (DPRAM_0+256*2)
 	rts
 	
 HEX_TABLE:	
@@ -175,7 +187,7 @@ ps_address:
 	bmi .fail
 	move.l parser_acc, D2
 	lsl.l #4, D2
-	add.w parser_acc_len, D0
+	;add.w parser_acc_len, D0
 	add.b D0, D2
 	move.l D2, parser_acc
 	subq.w #1, parser_acc_len
@@ -186,7 +198,17 @@ ps_address:
 	rts
 .fail:
 	;; reset
+	puts_imm "bad addr."
+	move.b parser_acc+3, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	bsr buffer_push_1
+	swap D0
+	bsr buffer_push_1
+	puts_imm "\n"
+	
 	move.l #ps_default, parser_state
+	bra parser_retry
 	rts
 	
 	;; D0 -> D0
@@ -211,7 +233,11 @@ Byte_to_ascii_hex:
 .digits:
 	dc.b "0123456789ABCDEFG"
 	
-ps_command_p:	
+ps_command_p:
+	move.l #ps_default, parser_state
+	
+	puts_imm "READ:"
+	
 	move.b #'@', D0
 	bsr buffer_push_1
 	
@@ -254,10 +280,14 @@ ps_command_p:
 	move.b #'\n', D0
 	jsr buffer_push_1
 	
-	move.l #ps_default, parser_state
 	rts
 
 ps_command_w:
+	move.l #ps_default, parser_state
+	
+	move.b #'w', D0
+	jsr buffer_push_1
+	
 	move.l parser_acc, D0
 	move.b D0, D1
 	lsr.l #8, D0
@@ -268,7 +298,6 @@ ps_command_w:
 	jsr buffer_push_1
 	move.b #'\n', D0
 	jsr buffer_push_1
-	
 	rts
 
 
