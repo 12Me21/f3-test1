@@ -201,6 +201,7 @@ ps_command_p:
 	clr.l D0
 	move.b parser_acc+1, D0
 	bsr Byte_to_ascii_hex
+	swap D0
 	bsr buffer_push_1
 	swap D0
 	bsr buffer_push_1
@@ -208,6 +209,7 @@ ps_command_p:
 	clr.l D0
 	move.b parser_acc+2, D0
 	bsr Byte_to_ascii_hex
+	swap D0
 	bsr buffer_push_1
 	swap D0
 	bsr buffer_push_1
@@ -215,6 +217,7 @@ ps_command_p:
 	clr.l D0
 	move.b parser_acc+3, D0
 	bsr Byte_to_ascii_hex
+	swap D0
 	bsr buffer_push_1
 	swap D0
 	bsr buffer_push_1
