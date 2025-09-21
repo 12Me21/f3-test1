@@ -159,6 +159,12 @@ ps_address:
 	move.l parser_next, parser_state
 	rts
 	
+load_rel Macro data, register
+	subi.w #(.testz-data+2), register
+.testz:
+	move.ATTRIBUTE (PC, D0), D0
+	Endm
+	
 	Org $C01000
 	;; D0 -> D0
 NUMBER_TO_HEX:	
@@ -169,7 +175,7 @@ to_hex:
 	ror.l #4, D0
 	;; [llll .... .... .... 0000 0000 0000 hhhh]
 	;; work on the upper half
-	subi.w #(.test-NUMBER_TO_HEX), D0
+	subi.w #(.test-NUMBER_TO_HEX+2), D0
 .test:
 	move.b (PC, D0), D0
 	;; [llll .... .... .... 1111 1111 HHHH HHHH]
@@ -178,7 +184,7 @@ to_hex:
 	;; [1111 1111 HHHH HHHH llll .... .... ....]
 	rol.w #4, D0
 	;; [1111 1111 HHHH HHHH .... .... .... llll]
-	subi.w #(.test2-NUMBER_TO_HEX), D0
+	subi.w #(.test2-NUMBER_TO_HEX+2), D0
 .test2:
 	move.b (PC, D0), D0
 	;; [1111 1111 HHHH HHHH 1111 1111 LLLL LLLL]
