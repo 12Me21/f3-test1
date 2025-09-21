@@ -25,6 +25,19 @@ enable_interrupts	macro
 	andi.w #(~$700), SR
 	endm
 
+	;; this can't use .size notation because ATTRIBUTE can't be used in IF!
+	;; anyway this is for 68000 where we don't have as many fancy addressing modes
+	;; maybe there is a better way to do this but whatever
+	;; before: [uuuu uuuu uuuu uuuu iiii iiii iiii iiii] i = index
+	;; after:  [uuuu uuuu uuuu uuuu ???? ???? dddd dddd] d = data loaded from rom
+	;; corrupts the second lowest byte, but leaves the upper word untouched
+	;; note that the corrupted bits depend on the distance and direction to the data;
+load_rel_b MACRO data, register
+	addi.w #(data-(.testz+2)), register
+.testz:
+	move.b (PC, register), register
+	ENDM
+	
 
 	
 	Org $C00000
@@ -122,7 +135,7 @@ ps_default:
 	bne .n1
 	move.l #ps_address, parser_state
 	move.l #ps_command_p, parser_next
-	move.w #3-1, parser_acc_len
+	move.w #6-1, parser_acc_len
 	clr.l parser_acc
 	rts
 .n1:
@@ -138,19 +151,19 @@ ps_default:
 	move.b D0, (DPRAM_0+256*2)
 	rts
 	
-;HEX_TABLE:	
-;	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
-;	Align 2
+HEX_TABLE:	
+	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
+	Align 2
 	
 ps_address:	
-;	move.w D5, D0
-;	subi.w #(.test-HEX_TABLE), D0
-;.test:
-;	move.b (PC, D0), D0
-;	bmi .end
+	move.w D5, D0
+	load_rel_b HEX_TABLE, D0
+	tst.b D0
+	bmi .end
 	move.l parser_acc, D2
-	lsl.l #8, D2
-	add.b D5, D2
+	lsl.l #4, D2
+	add.w parser_acc_len, D0
+	add.b D0, D2
 	move.l D2, parser_acc
 	subq.w #1, parser_acc_len
 	bmi .end
@@ -159,36 +172,27 @@ ps_address:
 	move.l parser_next, parser_state
 	rts
 	
-load_rel Macro data, register
-	subi.w #(.testz-data+2), register
-.testz:
-	move.ATTRIBUTE (PC, D0), D0
-	Endm
-	
-	Org $C01000
 	;; D0 -> D0
-NUMBER_TO_HEX:	
-	dc.b "0123456789ABCDEFG"
-	Align 2
-to_hex:	
-	;; [.... .... .... 0000 0000 0000 hhhh llll]
+	;; convert a byte into 2 ascii hex digits (unpacked)
+Byte_to_ascii_hex:	
+	;; [0000 0000 0000 0000 0000 0000 hhhh llll]
 	ror.l #4, D0
-	;; [llll .... .... .... 0000 0000 0000 hhhh]
+	;; [llll 0000 0000 0000 0000 0000 0000 hhhh]
 	;; work on the upper half
-	subi.w #(.test-NUMBER_TO_HEX+2), D0
-.test:
-	move.b (PC, D0), D0
-	;; [llll .... .... .... 1111 1111 HHHH HHHH]
+	load_rel_b .digits, D0
+	;; [llll 0000 0000 0000 ???? ???? HHHH HHHH]
 	;; now:
 	swap D0
-	;; [1111 1111 HHHH HHHH llll .... .... ....]
+	;; [???? ???? HHHH HHHH llll 0000 0000 0000]
 	rol.w #4, D0
-	;; [1111 1111 HHHH HHHH .... .... .... llll]
-	subi.w #(.test2-NUMBER_TO_HEX+2), D0
-.test2:
-	move.b (PC, D0), D0
-	;; [1111 1111 HHHH HHHH 1111 1111 LLLL LLLL]
+	;; [???? ???? HHHH HHHH 0000 0000 0000 llll]
+	load_rel_b .digits, D0
+	;; [???? ???? HHHH HHHH ???? ???? LLLL LLLL]
 	rts
+	;; note in this case the garbage bits will be zeros, because the data is located
+	;; _after_ the code, and fewer than 256 bytes away
+.digits:
+	dc.b "0123456789ABCDEFG"
 	
 ps_command_p:	
 	move.b #'@', D0
@@ -196,21 +200,21 @@ ps_command_p:
 	
 	clr.l D0
 	move.b parser_acc+1, D0
-	bsr to_hex
+	bsr Byte_to_ascii_hex
 	bsr buffer_push_1
 	swap D0
 	bsr buffer_push_1
 	
 	clr.l D0
 	move.b parser_acc+2, D0
-	bsr to_hex
+	bsr Byte_to_ascii_hex
 	bsr buffer_push_1
 	swap D0
 	bsr buffer_push_1
 
 	clr.l D0
 	move.b parser_acc+3, D0
-	bsr to_hex
+	bsr Byte_to_ascii_hex
 	bsr buffer_push_1
 	swap D0
 	bsr buffer_push_1
