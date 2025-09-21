@@ -159,9 +159,10 @@ ps_address:
 	move.l parser_next, parser_state
 	rts
 	
+	Org $C01000
 	;; D0 -> D0
 NUMBER_TO_HEX:	
-	dc.s "0123456789ABCDEFG"
+	dc.b "0123456789ABCDEFG"
 	Align 2
 to_hex:	
 	;; [.... .... .... 0000 0000 0000 hhhh llll]
