@@ -139,6 +139,14 @@ ps_default:
 	clr.l parser_acc
 	rts
 .n1:
+	cmp.b #'w', D5
+	bne .n2
+	move.l #ps_address, parser_state
+	move.l #ps_command_w, parser_next
+	move.w #8-1, parser_acc_len
+	clr.l parser_acc
+	rts
+.n2:
 	move.b #'~', D0
 	jsr buffer_push_1
 	
@@ -159,7 +167,7 @@ ps_address:
 	move.w D5, D0
 	load_rel_b HEX_TABLE, D0
 	tst.b D0
-	bmi .end
+	bmi .fail
 	move.l parser_acc, D2
 	lsl.l #4, D2
 	add.w parser_acc_len, D0
@@ -170,6 +178,10 @@ ps_address:
 	rts
 .end:
 	move.l parser_next, parser_state
+	rts
+.fail:
+	;; reset
+	move.l #ps_default, parser_state
 	rts
 	
 	;; D0 -> D0
@@ -222,11 +234,39 @@ ps_command_p:
 	swap D0
 	bsr buffer_push_1
 
+	move.b #'=', D0
+	bsr buffer_push_1
+
+	move.l parser_acc, A0
+	clr.l D0
+	move.b (A0), D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	bsr buffer_push_1
+	swap D0
+	bsr buffer_push_1
+	
 	move.b #'\n', D0
 	jsr buffer_push_1
 	
 	move.l #ps_default, parser_state
 	rts
+
+ps_command_w:
+	move.l parser_acc, D0
+	move.b D0, D1
+	lsr.l #8, D0
+	move.l D0, A0
+	move.b D1, (A0)
+	
+	move.b #'/', D0
+	jsr buffer_push_1
+	move.b #'\n', D0
+	jsr buffer_push_1
+	
+	rts
+
+
 
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
