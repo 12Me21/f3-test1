@@ -60,6 +60,16 @@ spin:
 exc:	
 	rte
 	
+	;; note uses like, A1, A0, D0
+puts_imm macro str
+	lea .string, A1
+	pea .next
+	bra puts
+.string:
+	dc.b str, "\0"
+	align 2
+.next:
+	endm
 	
 entry:	
 	moveq.l #$7F, D0
@@ -91,13 +101,8 @@ entry:
 	jsr setup_otis
 	jsr setup_esp
 	
-	move.b #'H', D0
-	jsr buffer_push_1
-	move.b #'i', D0
-	jsr buffer_push_1
-	move.b #'!', D0
-	jsr buffer_push_1
-
+	puts_imm "Hi!"
+	
 	jmp spin
 	
 user_0:	
@@ -411,6 +416,24 @@ timer_ready:
 	jsr buffer_send_1
 	rts
 	
+	;; takes A1
+puts:
+	move.w buffer_write_ptr, A0
+.loop:
+	move.b (A1)+, D0
+	beq .exit
+	move.b D0, (A0)+
+	bsr buffer_wrap_a0
+	addq.b #1, buffer_filled
+	bra .loop 						  
+	;; lea (PC, .loop-*), A5
+	;; move.l A5, -(SP)
+	;; bra buffer_wrap_a0
+.exit:
+	move.w A0, buffer_write_ptr
+	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
+	rts
+	
 ;todo:
 DPRAM_SEND_BUFFER = DPRAM_0
 DPRAM_RECV_BUFFER = DPRAM_0+$100
@@ -427,3 +450,4 @@ dpram_setup:
 	;; D0
 dpram_send:	
 	rts
+	
