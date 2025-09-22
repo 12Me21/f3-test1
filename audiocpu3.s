@@ -80,10 +80,12 @@ puts_imm macro str
 	endm
 	
 entry:	
+	clr.l D2
 	moveq.l #$7F, D0
 	move.l D0, D1
 	neg.l D1
 .wait:
+	addq.w #1, D2
 	suba.l A1, A1
 	move.l D0, (A1)+
 	move.l D1, (A1)
@@ -110,6 +112,13 @@ entry:
 	jsr setup_esp
 	
 	puts_imm "Hi!"
+	move.w D2, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	bsr buffer_push_1
+	swap D0
+	bsr buffer_push_1
+	puts_imm "\n"
 	
 	jmp spin
 	
