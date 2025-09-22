@@ -44,7 +44,7 @@ load_rel_b MACRO data, register
 	Org $0
 ROM_VECTORS_0:
 	dc.l $000000
-	dc.l entry
+	dc.l (entry - $C00000)
 	dc.l  [64-2]exc
 ;	Org $28
 ;	dc.l Line_a
