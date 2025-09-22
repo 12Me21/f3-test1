@@ -13,7 +13,7 @@ audiocpu3.p: duart-68000.s otis.s
 	$(AS) $< $(ASFLAGS) -L -o $@
 
 %.audio.bin: %.p
-	$(P2BIN) $< $@ -r 0xC00000-0xC7FFFF
+	$(P2BIN) $< $@ -r 0x0-0x17FFFF
 
 %.main.bin: %.p
 	$(P2BIN) $< $@ -r 0x0-0x1FFFFF

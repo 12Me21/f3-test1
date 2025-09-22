@@ -1,7 +1,8 @@
 	CPU 68000
 	SUPMODE ON
 	PADDING ON
-	ORG $C00000
+	ORG $0
+	PHASE $C00000
 
 	Include "duart-68000.s"
 	Include "otis.s"
@@ -40,18 +41,18 @@ load_rel_b MACRO data, register
 	
 
 	
-	Org $C00000
+	Org $0
 ROM_VECTORS_0:
 	dc.l $000000
 	dc.l entry
 	dc.l  [64-2]exc
-;	Org $C00028
+;	Org $28
 ;	dc.l Line_a
-	org $C00100
+	org $100
 	dc.l exc
 	;;  todo
 
-	Org $C00400
+	Org $400
 	
 spin:	
 	stop #$2000
