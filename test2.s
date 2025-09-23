@@ -880,11 +880,11 @@ loop:
 	;; read btns
 	jsr process_inputs
 .n1
-	
 	clr.l D0
-	move.b DPRAM_0+256, D0 		  ; write pointer
-	lea (DPRAM_0,D0), A1
-	move.l dpram_read_ptr, A0 	  ; read pointer
+	move.b SHARED_A_READ, D0
+	lea (SHARED_A_BUFFER, D0), A0 ; a read ptr
+	move.b SHARED_A_WRITE, D0
+	lea (SHARED_A_BUFFER, D0), A1 ; a write ptr
 .read_dpram:
 	cmpa.l A1, A0
 	beq .nomore
@@ -892,13 +892,17 @@ loop:
 	jsr got_byte
 	cmpa.l #(DPRAM_0+256), A0
 	bne .read_dpram
-	lea DPRAM_0, A0
+	lea SHARED_A_BUFFER, A0
 	bra .read_dpram
 .nomore:
-	move.l A0, dpram_read_ptr
+	move.l A0, D0
+	move.b D0, SHARED_A_READ
 .ret:
 	rts
 	
+
+
+
 	;; D0
 got_byte:	
 	movem.l	A0/A1, -(SP)
