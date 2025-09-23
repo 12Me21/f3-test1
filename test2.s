@@ -868,10 +868,12 @@ loop:
 	
 	addq.l #1, counter1
 	cmpi.l #30, counter1
-	ble .ret 						  ; ignore buttons in the half second
+	ble .n1 						  ; ignore buttons in the first half second
 	;; read btns
 	jsr process_inputs
+.n1
 	
+	clr.l D0
 	move.b DPRAM_0+256, D0 		  ; write pointer
 	lea (DPRAM_0,D0), A1
 	move.l dpram_read_ptr, A0 	  ; read pointer
