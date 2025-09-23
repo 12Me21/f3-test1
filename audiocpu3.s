@@ -322,7 +322,7 @@ setup_duart:
 	move.b #DUART_CR_RESET_BCI, (A4, DUART_CRB)
 	
 	move.b #DUART_CR_RESET_MR, (A4, DUART_CRB)
-	;; program channel B for 8N1
+	;; program channel B for 62500 baud 8N1
 	move.b #$13, (A4, DUART_MRB) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off 
 	move.b #$07, (A4, DUART_MRB) ; - stop bit length = 1.0, CTS off, Tx RTS off, channel mode normal
 	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
