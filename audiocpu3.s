@@ -80,22 +80,7 @@ puts_imm macro str
 .next:
 	endm
 	
-entry:	
-	clr.l D2
-	moveq.l #$7F, D0
-	move.l D0, D1
-	neg.l D1
-.wait:
-	addq.w #1, D2
-	suba.l A1, A1
-	move.l D0, (A1)+
-	move.l D1, (A1)
-	cmp.l (A1), D1
-	bne .check1_fail
-	cmp.l -(A1), D0
-.check1_fail:
-	bne .wait
-	
+entry:
 	movea.l ROM_VECTORS_0, SP
 	
 	moveq.l #76, D1
@@ -107,10 +92,10 @@ entry:
 	
 	move.b #15, DPRAM_0
 	
-	jsr buffer_setup
-	jsr setup_duart
-	jsr setup_otis
-	jsr setup_esp
+	bsr buffer_setup
+	bsr setup_duart
+	bsr setup_otis
+	bsr setup_esp
 	
 	puts_imm "Hi!"
 	move.w D2, D0
@@ -130,21 +115,29 @@ user_0:
 	move.b (A4, DUART_ISR), D0
 	btst #5, D0
 	beq .n1
-	jsr b_rx_ready
+	bsr b_rx_ready
 .n1:
 	btst #3, D0 					  ; 
 	beq .n2
 	tst.b (A4, DUART_STOP_C) ; acknowledge interrupt
-	jsr timer_ready
+	bsr timer_ready
 .n2:
+	btst #4, D0
+	beq .n3
+	bsr b_tx_ready
+.n3:
 	movem.l (SP)+, A5/A4/A2/A1/A0/D5/D3/D2/D1/D0
 	rte
+
+b_tx_ready:	
+	bsr buffer_send_1
+	rts
 
 b_rx_ready:	
 	move.b (A4, DUART_SRB), D1
 	and.b #$50, D1
 	beq.b .framing_and_overrun_ok
-	jsr setup_duart
+	bsr setup_duart
 	puts_imm "Bad"
 	rts
 .framing_and_overrun_ok:
@@ -158,7 +151,6 @@ b_rx_ready:
 	andi.w #$1FF, (spin_pointer+2)
 	move.w (spin_pointer+2), D0
 	move.b D0, (DPRAM_0+256*2)
-	
 parser_retry:
 	move.l parser_state, A0
 	jmp (A0)
@@ -182,18 +174,22 @@ ps_default:
 	rts
 .n2:
 	move.b #'~', D0
-	jsr buffer_push_1
+	bsr buffer_push_1
 	
 	rts
 	
-HEX_TABLE:	
+	;; in: D0
+	;; out: D0, flags
+hex_char_to_ascii:	
+	load_rel_b .HEX_TABLE, D0
+	rts
+.HEX_TABLE:	
 	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
 	Align 2
 	
 ps_address:	
 	move.w D5, D0
-	load_rel_b HEX_TABLE, D0
-	tst.b D0
+	bsr hex_char_to_ascii
 	bmi .fail
 	move.l parser_acc, D2
 	lsl.l #4, D2
@@ -288,7 +284,7 @@ ps_command_p:
 	bsr buffer_push_1
 	
 	move.b #'\n', D0
-	jsr buffer_push_1
+	bsr buffer_push_1
 	
 	rts
 
@@ -296,7 +292,7 @@ ps_command_w:
 	move.l #ps_default, parser_state
 	
 	move.b #'w', D0
-	jsr buffer_push_1
+	bsr buffer_push_1
 	
 	move.l parser_acc, D0
 	move.b D0, D1
@@ -305,9 +301,9 @@ ps_command_w:
 	move.b D1, (A0)
 	
 	move.b #'/', D0
-	jsr buffer_push_1
+	bsr buffer_push_1
 	move.b #'\n', D0
-	jsr buffer_push_1
+	bsr buffer_push_1
 	rts
 
 
@@ -326,8 +322,9 @@ setup_duart:
 	move.b #DUART_CR_RESET_BCI, (A4, DUART_CRB)
 	
 	move.b #DUART_CR_RESET_MR, (A4, DUART_CRB)
+	;; program channel B for 8N1
 	move.b #$13, (A4, DUART_MRB) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off 
-	move.b #$0F, (A4, DUART_MRB) ; - stop bit length = 2.0, CTS off, Tx RTS off, channel mode normal
+	move.b #$07, (A4, DUART_MRB) ; - stop bit length = 1.0, CTS off, Tx RTS off, channel mode normal
 	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
 	move.b #(DUART_CR_ENABLE_RX | DUART_CR_ENABLE_TX), (A4, DUART_CRB)
 	
@@ -336,7 +333,7 @@ setup_duart:
 	movep.w D0, (A4, DUART_CTUR)
 	move.b #$60, (A4, DUART_ACR) ; Timer mode, use external clock (4mhz)
 	;; enable interrupts: RxRDYB and counter
-	move.b #(DUART_IMR_RX_B | DUART_IMR_COUNTER), (A4, DUART_IMR)
+	move.b #(DUART_IMR_RX_B | DUART_IMR_TX_B), (A4, DUART_IMR)
 	
 	rts
 	
@@ -452,7 +449,7 @@ buffer_push_1:
 	rts
 	
 timer_ready:	
-	jsr buffer_send_1
+	
 	rts
 	
 	;; takes A1
