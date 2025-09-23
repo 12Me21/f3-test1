@@ -12,7 +12,6 @@ TEXT_RAM = $61C000
 SOUND_RESET_START = $C80100
 SOUND_RESET_END = $C80000
 DPRAM_0 = $C00000
-dpram_addr	FUNCTION x, DPRAM_0+x
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
@@ -881,9 +880,10 @@ loop:
 	jsr process_inputs
 .n1
 
-	jsr shared_a_begin
+	jsr stdin_begin
 	bra .read_start
 .read:
+	clr.l D0
 	jsr shared_pop
 	push.l D0
 	logf4 1, "got byte: %x\n"
@@ -891,7 +891,7 @@ loop:
 .read_start
 	jsr shared_check_remaining
 	bne .read
-	jsr shared_a_end
+	jsr stdin_end
 	
 .ret:
 	rts

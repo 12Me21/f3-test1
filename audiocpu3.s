@@ -10,7 +10,6 @@ IS_AUDIO = 1
 DUART_0 = $280000
 OTIS_0 = $200000
 DPRAM_0 = $140000
-dpram_addr	FUNCTION x, DPRAM_0+x*2
 	
 ESP_HALT = $26003F
 parser_state = $1500
@@ -131,13 +130,13 @@ user_0:
 	rte
 
 b_tx_ready:	
-	jsr shared_m_begin
+	jsr stdout_begin
 	jsr shared_check_remaining
 	beq .empy
 	jsr shared_pop
 	move.b D0, (A4, DUART_TBB)
 .ret:
-	jsr shared_m_end
+	jsr stdout_end
 	rts
 .empy:
 	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
@@ -154,10 +153,9 @@ b_rx_ready:
 	clr.l D0
 	move.b (A4, DUART_RBB), D5
 	move.b D5, D0
-	;; print recvd character
-	jsr shared_a_begin
+	jsr stdin_begin
 	jsr shared_push
-	jsr shared_a_end
+	jsr stdin_end
 	rts								  ;nevermind
 parser_retry:
 	move.l parser_state, A0
@@ -404,9 +402,9 @@ timer_ready:
 	;; takes D0
 putc:
 	movem.l	A0/A1/D0/D7, -(SP)
-	jsr shared_m_begin
+	jsr stdout_begin
 	jsr shared_push
-	jsr shared_m_end
+	jsr stdout_end
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
 	movem.l	(SP)+, A0/A1/D0/D7
 	rts
@@ -414,14 +412,14 @@ putc:
 	;; takes A2
 puts:
 	movem.l	A0/A1/D0/D7, -(SP)	
-	jsr shared_m_begin
+	jsr stdout_begin
 .loop:
 	move.b (A2)+, D0
 	beq .exit
 	jsr shared_push
 	bra .loop
 .exit:
-	jsr shared_m_end
+	jsr stdout_end
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
 	movem.l	(SP)+, A0/A1/D0/D7
 	rts

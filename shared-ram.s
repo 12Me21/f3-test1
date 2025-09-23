@@ -1,22 +1,22 @@
 	;; for main cpu: $C00000+offset
 	;; for audio cpu: $140000+offset*2
-	;; "A" buffer - "stdin" (audio cpu moves data from: duart recieve buffer B -> stdin)
-SHARED_A_BUFFER = dpram_addr($000)
-SHARED_A_READ = dpram_addr($100)
-SHARED_A_WRITE = dpram_addr($101)
-SHARED_A_LOCK = dpram_addr($102)
-	;; "M" buffer - "stdout" (audio cpu moves data from: stdout -> duart transmit buffer B)
-SHARED_M_BUFFER = dpram_addr($200)
-SHARED_M_READ = dpram_addr($300)
-SHARED_M_WRITE = dpram_addr($301)
-SHARED_M_LOCK = dpram_addr($302)
 	IFDEF IS_AUDIO
-SHARED_WRAP_BIT = 8+1
-SHARED_STRIDE = 1*2
+SHARED_ADDR_STRIDE = 1*2
 	ELSEIF
-SHARED_WRAP_BIT = 8
-SHARED_STRIDE = 1
-	ENDIF	
+SHARED_ADDR_STRIDE = 1
+	ENDIF
+SHARED_ADDR_MASK = (~($100*SHARED_ADDR_STRIDE))
+dpram_addr	FUNCTION x, DPRAM_0+x*SHARED_ADDR_STRIDE
+	;; "A" buffer - "stdin" (audio cpu moves data from: duart recieve buffer B -> stdin)
+STDIN_BUFFER = dpram_addr($000)
+STDIN_READ = dpram_addr($100)
+STDIN_WRITE = dpram_addr($101)
+STDIN_LOCK = dpram_addr($102)
+	;; "M" buffer - "stdout" (audio cpu moves data from: stdout -> duart transmit buffer B)
+STDOUT_BUFFER = dpram_addr($200)
+STDOUT_READ = dpram_addr($300)
+STDOUT_WRITE = dpram_addr($301)
+STDOUT_LOCK = dpram_addr($302)
 	;; note that both cpus can read and write to either buffer.
 	
 	;; protocol to avoid race conditions:
@@ -70,20 +70,20 @@ shared_end_operation MACRO buffer, read, write, lock
 	atomic_end lock
 	ENDM
 	
-shared_a_begin:
-	shared_begin_operation SHARED_A_BUFFER, SHARED_A_READ, SHARED_A_WRITE, SHARED_A_LOCK
+stdin_begin:
+	shared_begin_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_LOCK
 	rts
 	
-shared_a_end:	
-	shared_end_operation SHARED_A_BUFFER, SHARED_A_READ, SHARED_A_WRITE, SHARED_A_LOCK
+stdin_end:	
+	shared_end_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_LOCK
 	rts
 	
-shared_m_begin:	
-	shared_begin_operation SHARED_M_BUFFER, SHARED_M_READ, SHARED_M_WRITE, SHARED_M_LOCK
+stdout_begin:	
+	shared_begin_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_LOCK
 	rts
 	
-shared_m_end:	
-	shared_end_operation SHARED_M_BUFFER, SHARED_M_READ, SHARED_M_WRITE, SHARED_M_LOCK
+stdout_end:	
+	shared_end_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_LOCK
 	rts
 	
 shared_check_remaining:	
@@ -92,15 +92,15 @@ shared_check_remaining:
 	
 shared_increment_read:
 	move.l A0, D7
-	addq.w #SHARED_STRIDE, D7
-	bclr.l #SHARED_WRAP_BIT, D7
+	addq.w #SHARED_ADDR_STRIDE, D7
+	andi.w #SHARED_ADDR_MASK, D7
 	move.l D7, A0
 	rts
 
 shared_increment_write:
 	move.l A1, D7
-	addq.w #SHARED_STRIDE, D7
-	bclr.l #SHARED_WRAP_BIT, D7
+	addq.w #SHARED_ADDR_STRIDE, D7
+	andi.w #SHARED_ADDR_MASK, D7
 	move.l D7, A1
 	rts
 	
@@ -118,14 +118,14 @@ shared_pop:
 	ELSE
 	;; only one cpu should do this!
 shared_init:	
-	st.b SHARED_A_LOCK
-	clr.b SHARED_A_READ
-	clr.b SHARED_A_WRITE
-	sf.b SHARED_A_LOCK
-	st.b SHARED_M_LOCK
-	clr.b SHARED_M_READ
-	clr.b SHARED_M_WRITE
-	sf.b SHARED_M_LOCK
+	st.b STDIN_LOCK
+	clr.b STDIN_READ
+	clr.b STDIN_WRITE
+	sf.b STDIN_LOCK
+	st.b STDOUT_LOCK
+	clr.b STDOUT_READ
+	clr.b STDOUT_WRITE
+	sf.b STDOUT_LOCK
 	rts
 	ENDIF
 	
