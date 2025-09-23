@@ -903,6 +903,12 @@ loop:
 	jsr process_inputs
 .n1:
 	
+	jsr stdout_begin
+	push.l A1
+	push.l A0
+	jsr stdout_end
+	
+	logf4 2, "stdout %x/%x\n"
 	jsr stdin_begin
 	bra .read_start
 .read:

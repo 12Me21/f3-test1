@@ -399,14 +399,12 @@ setup_esp:
 	
 	org $8000
 timer_ready:	
-	;; check if we have any data to re-enable tx for (in case it was written by main cpu)
-	move.l STDOUT_READ, D0 		  ; fast way to read STDOUT_READ and _WRITE
-	move.b D0, D1
-	swap D0
-	cmp.w D0, D1
+	jsr stdout_begin
+	jsr shared_check_remaining
 	beq .empy
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
 .empy:
+	jsr stdout_end
 	rts
 	
 	;; takes D0
