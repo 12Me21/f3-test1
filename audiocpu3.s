@@ -9,6 +9,9 @@
 DUART_0 = $280000
 OTIS_0 = $200000
 DPRAM_0 = $140000
+dpram_addr	FUNCTION x, DPRAM_0+x*2
+	Include "shared-ram.s"
+	
 ESP_HALT = $26003F
 spin_pointer = $1000
 parser_state = $1500
@@ -317,6 +320,8 @@ setup_duart:
 	move.l #DPRAM_0, D0
 	move.l D0, spin_pointer
 	move.b D0, (DPRAM_0+256*2)
+	clr.b SHARED_A_WRITE
+	clr.b SHARED_M_READ
 	
 	move.l #ps_default, parser_state
 	

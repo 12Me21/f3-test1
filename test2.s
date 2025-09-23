@@ -12,7 +12,8 @@ TEXT_RAM = $61C000
 SOUND_RESET_START = $C80100
 SOUND_RESET_END = $C80000
 DPRAM_0 = $C00000
-	
+dpram_addr	FUNCTION x, DPRAM_0+x
+	Include "shared-ram.s"
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
@@ -828,7 +829,8 @@ entry:
 	move.l #0, edit
 	move.l #$C00080, edit_addr
 	
-	move.l #DPRAM_0, dpram_read_ptr
+	clr.b SHARED_A_READ
+	clr.b SHARED_M_WRITE
 	move.l #ps_default, parser_state
 
 	moveq.l #6, D6
