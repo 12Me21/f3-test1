@@ -882,13 +882,13 @@ loop:
 .n1
 
 	jsr shared_a_begin
-	bra .read_entry
+	bra .read_start
 .read:
 	jsr shared_pop
 	push.l D0
 	logf4 1, "got byte: %x\n"
 	;bsr got_byte
-.read_entry
+.read_start
 	jsr shared_check_remaining
 	bne .read
 	jsr shared_a_end

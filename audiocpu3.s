@@ -75,7 +75,7 @@ exc:
 	
 	;; note uses like, A1, A0, D0
 puts_imm macro str
-	lea .string, A1
+	lea .string, A2
 	pea .next
 	bra puts
 .string:
@@ -94,7 +94,6 @@ entry:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
 	
-	bsr buffer_setup
 	bsr setup_duart
 	bsr setup_otis
 	bsr setup_esp
@@ -103,9 +102,9 @@ entry:
 	move.w D2, D0
 	bsr Byte_to_ascii_hex
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	puts_imm "\n"
 	
 	jmp spin
@@ -132,8 +131,17 @@ user_0:
 	rte
 
 b_tx_ready:	
-	bsr buffer_send_1
+	jsr shared_m_begin
+	jsr shared_check_remaining
+	beq .empy
+	jsr shared_pop
+	move.b D0, (A4, DUART_TBB)
+.ret:
+	jsr shared_m_end
 	rts
+.empy:
+	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
+	bra .ret
 
 b_rx_ready:	
 	move.b (A4, DUART_SRB), D1
@@ -144,11 +152,13 @@ b_rx_ready:
 	rts
 .framing_and_overrun_ok:
 	clr.l D0
-	move.b (A4, DUART_RBB), D0
+	move.b (A4, DUART_RBB), D5
+	move.b D5, D0
 	;; print recvd character
 	jsr shared_a_begin
 	jsr shared_push
 	jsr shared_a_end
+	rts								  ;nevermind
 parser_retry:
 	move.l parser_state, A0
 	jmp (A0)
@@ -172,7 +182,7 @@ ps_default:
 	rts
 .n2:
 	move.b #'~', D0
-	bsr buffer_push_1
+	bsr putc
 	
 	rts
 	
@@ -206,9 +216,9 @@ ps_address:
 	move.b parser_acc+3, D0
 	bsr Byte_to_ascii_hex
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	puts_imm "\n"
 	
 	move.l #ps_default, parser_state
@@ -243,46 +253,46 @@ ps_command_p:
 	puts_imm "READ:"
 	
 	move.b #'@', D0
-	bsr buffer_push_1
+	bsr putc
 	
 	clr.l D0
 	move.b parser_acc+1, D0
 	bsr Byte_to_ascii_hex
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	
 	clr.l D0
 	move.b parser_acc+2, D0
 	bsr Byte_to_ascii_hex
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 
 	clr.l D0
 	move.b parser_acc+3, D0
 	bsr Byte_to_ascii_hex
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 
 	move.b #'=', D0
-	bsr buffer_push_1
+	bsr putc
 
 	move.l parser_acc, A0
 	clr.l D0
 	move.b (A0), D0
 	bsr Byte_to_ascii_hex
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	swap D0
-	bsr buffer_push_1
+	bsr putc
 	
 	move.b #'\n', D0
-	bsr buffer_push_1
+	bsr putc
 	
 	rts
 
@@ -290,7 +300,7 @@ ps_command_w:
 	move.l #ps_default, parser_state
 	
 	move.b #'w', D0
-	bsr buffer_push_1
+	bsr putc
 	
 	move.l parser_acc, D0
 	move.b D0, D1
@@ -299,9 +309,9 @@ ps_command_w:
 	move.b D1, (A0)
 	
 	move.b #'/', D0
-	bsr buffer_push_1
+	bsr putc
 	move.b #'\n', D0
-	bsr buffer_push_1
+	bsr putc
 	rts
 
 
@@ -387,82 +397,31 @@ setup_esp:
 	move.b #2, ESP_HALT
 	rts
 	
-
-buffer_start = $2000
-buffer_end = buffer_start+100
-buffer_read_ptr = buffer_end
-buffer_write_ptr = buffer_end+2
-buffer_filled = buffer_end+4
-	
-buffer_setup:	
-	move.b #0, buffer_filled
-	move.w #buffer_start, buffer_read_ptr
-	move.w #buffer_start, buffer_write_ptr
-	rts
-	
-	;; D0, A0
-buffer_push:
-	move.w buffer_write_ptr, A0
-	move.b D0, (A0)+
-	bsr buffer_wrap_a0
-	move.w A0, buffer_write_ptr
-	addq.b #1, buffer_filled
-	rts
-	
-buffer_wrap_a0:	
-	cmpa.w #buffer_end, A0
-	bcs .ok
-	move.w #buffer_start, A0
-.ok:
-	rts
-	
-	;; D0, A0
-buffer_pop:	
-	move.w buffer_read_ptr, A0
-	move.b (A0)+, D0
-	bsr buffer_wrap_a0
-	move.w A0, buffer_read_ptr
-	subq.b #1, buffer_filled
-	rts
-	
-buffer_send_1:	
-	lea DUART_0, A4
-	tst.b buffer_filled
-	beq .empy
-	bsr buffer_pop
-	move.b D0, (A4, DUART_TBB)
-	tst.b buffer_filled
-	beq .empy
-	rts
-.empy:
-	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
-	rts
-	
-	;; D0
-buffer_push_1:	
-	lea DUART_0, A4
-	bsr buffer_push
-	move.b #DUART_CR_ENABLE_TX, (A4, DUART_CRB)
-	rts
-	
 timer_ready:	
 	
 	rts
 	
-	;; takes A1
-puts:
-	move.w buffer_write_ptr, A0
-.loop:
-	move.b (A1)+, D0
-	beq .exit
-	move.b D0, (A0)+
-	bsr buffer_wrap_a0
-	addq.b #1, buffer_filled
-	bra .loop 						  
-	;; lea (PC, .loop-*), A5
-	;; move.l A5, -(SP)
-	;; bra buffer_wrap_a0
-.exit:
-	move.w A0, buffer_write_ptr
+	;; takes D0
+putc:
+	movem.l	A0/A1/D0/D7, -(SP)
+	jsr shared_m_begin
+	jsr shared_push
+	jsr shared_m_end
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
+	movem.l	(SP)+, A0/A1/D0/D7
+	rts
+	
+	;; takes A2
+puts:
+	movem.l	A0/A1/D0/D7, -(SP)	
+	jsr shared_m_begin
+.loop:
+	move.b (A2)+, D0
+	beq .exit
+	jsr shared_push
+	bra .loop
+.exit:
+	jsr shared_m_end
+	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
+	movem.l	(SP)+, A0/A1/D0/D7
 	rts

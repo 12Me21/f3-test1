@@ -1,11 +1,11 @@
 	;; for main cpu: $C00000+offset
 	;; for audio cpu: $140000+offset*2
-	;; "A" buffer - input from duart, written by audio cpu, read by main cpu
+	;; "A" buffer - "stdin" (audio cpu moves data from: duart recieve buffer B -> stdin)
 SHARED_A_BUFFER = dpram_addr($000)
 SHARED_A_READ = dpram_addr($100)
 SHARED_A_WRITE = dpram_addr($101)
 SHARED_A_LOCK = dpram_addr($102)
-	;; "M" buffer - written by main cpu, read by audio cpu, output to duart
+	;; "M" buffer - "stdout" (audio cpu moves data from: stdout -> duart transmit buffer B)
 SHARED_M_BUFFER = dpram_addr($200)
 SHARED_M_READ = dpram_addr($300)
 SHARED_M_WRITE = dpram_addr($301)
@@ -17,6 +17,7 @@ SHARED_STRIDE = 1*2
 SHARED_WRAP_BIT = 8
 SHARED_STRIDE = 1
 	ENDIF	
+	;; note that both cpus can read and write to either buffer.
 	
 	;; protocol to avoid race conditions:
 	;; begin atomic operation:
