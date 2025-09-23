@@ -1004,15 +1004,13 @@ ps_command_p:
 	clr.l D0
 	move.b (A0), D0
 	
-	push.l D0
-	push.l A0
-	pea .msg
-	jsr stdout_printf
-	drop 4*2
+	lea .msg, A2
+	jsr puts
 	
 	rts
 .msg:
-	dc.b "READ:@%6X=%2X\n"
+	dc.b "abcdaaaaaaaaaaaaaaaaa\n\0"
+	;dc.b "READ:@%6X=%2X\n\0"
 	align 2
 
 ps_command_w:

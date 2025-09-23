@@ -129,10 +129,12 @@ user_0:
 	movem.l (SP)+, A5/A4/A2/A1/A0/D5/D3/D2/D1/D0
 	rte
 
+	org $8000
 b_tx_ready:	
 	jsr stdout_begin
 	jsr shared_check_remaining
 	beq .empy
+.inner:
 	jsr shared_pop
 	move.b D0, (A4, DUART_TBB)
 	jsr shared_check_remaining
@@ -141,7 +143,7 @@ b_tx_ready:
 	jsr stdout_end
 	rts
 .empy:
-	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
+	;move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
 	bra .ret
 
 b_rx_ready:	
@@ -397,12 +399,15 @@ setup_esp:
 	move.b #2, ESP_HALT
 	rts
 	
-	org $8000
-timer_ready:	
+timer_ready:
+	rts
+	;; temp disabled
 	jsr stdout_begin
 	jsr shared_check_remaining
 	beq .empy
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
+	btst.b #2, (DUART_0+DUART_SRB)
+	bne b_tx_ready.inner
 .empy:
 	jsr stdout_end
 	rts

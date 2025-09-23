@@ -2,10 +2,12 @@
 	;; for audio cpu: $140000+offset*2
 	IFDEF IS_AUDIO
 SHARED_ADDR_STRIDE = 1*2
+SHARED_ADDR_MASK = (~($100*SHARED_ADDR_STRIDE))
 	ELSEIF
 SHARED_ADDR_STRIDE = 1
-	ENDIF
 SHARED_ADDR_MASK = (~($100*SHARED_ADDR_STRIDE))
+	ENDIF
+	WARNING "SHARED_ADDR_MASK = \{SHARED_ADDR_MASK}"
 dpram_addr	FUNCTION x, DPRAM_0+x*SHARED_ADDR_STRIDE
 	;; "A" buffer - "stdin" (audio cpu moves data from: duart recieve buffer B -> stdin)
 STDIN_BUFFER = dpram_addr($000)
@@ -42,7 +44,7 @@ atomic_end MACRO lock
 
 shared_begin_operation MACRO buffer, read, write, lock
 	atomic_begin_sync lock
-	clr.w D7
+	clr.l D7
 	lea buffer, A0
 	move.b write, D7
 	IFDEF IS_AUDIO
