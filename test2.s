@@ -13,7 +13,6 @@ SOUND_RESET_START = $C80100
 SOUND_RESET_END = $C80000
 DPRAM_0 = $C00000
 dpram_addr	FUNCTION x, DPRAM_0+x
-	Include "shared-ram.s"
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
@@ -117,6 +116,8 @@ spin:
 	rts
 	dc.b "e!"
 	;bcs *+2 ; can't
+
+	Include "shared-ram.s"
 	
 print_ex_stack:
 	move.w (SP,4+0), (abcd+2)
@@ -796,6 +797,7 @@ entry:
 	lea (RAM_BASE).l, A5
 	nop
 	move.l #TEXT_RAM, cursor
+	jsr shared_init
 	clr.l counter1
 	; setup fio
 	move.b #0,$4a0000
@@ -829,8 +831,6 @@ entry:
 	move.l #0, edit
 	move.l #$C00080, edit_addr
 	
-	clr.b SHARED_A_READ
-	clr.b SHARED_M_WRITE
 	move.l #ps_default, parser_state
 
 	moveq.l #6, D6
@@ -880,28 +880,21 @@ loop:
 	;; read btns
 	jsr process_inputs
 .n1
-	clr.l D0
-	move.b SHARED_A_READ, D0
-	lea (SHARED_A_BUFFER, D0), A0 ; a read ptr
-	move.b SHARED_A_WRITE, D0
-	lea (SHARED_A_BUFFER, D0), A1 ; a write ptr
-.read_dpram:
-	cmpa.l A1, A0
-	beq .nomore
-	move.b (A0)+, D5
-	jsr got_byte
-	cmpa.l #(DPRAM_0+256), A0
-	bne .read_dpram
-	lea SHARED_A_BUFFER, A0
-	bra .read_dpram
-.nomore:
-	move.l A0, D0
-	move.b D0, SHARED_A_READ
+
+	jsr shared_a_begin
+	bra .read_entry
+.read:
+	jsr shared_pop
+	push.l D0
+	logf4 1, "got byte: %x\n"
+	;bsr got_byte
+.read_entry
+	jsr shared_check_remaining
+	bne .read
+	jsr shared_a_end
+	
 .ret:
 	rts
-	
-
-
 
 	;; D0
 got_byte:	

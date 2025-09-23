@@ -1,6 +1,7 @@
 	CPU 68000
 	SUPMODE ON
 	PADDING ON
+IS_AUDIO = 1
 	ORG $0
 	PHASE $C00000
 
@@ -10,10 +11,8 @@ DUART_0 = $280000
 OTIS_0 = $200000
 DPRAM_0 = $140000
 dpram_addr	FUNCTION x, DPRAM_0+x*2
-	Include "shared-ram.s"
 	
 ESP_HALT = $26003F
-spin_pointer = $1000
 parser_state = $1500
 parser_next = parser_state+4 	  ;eventually this is gonna have to be a stack tbh
 parser_acc = parser_next+4
@@ -71,6 +70,8 @@ idle:
 
 exc:	
 	rte
+
+	Include "shared-ram.s"
 	
 	;; note uses like, A1, A0, D0
 puts_imm macro str
@@ -92,9 +93,6 @@ entry:
 .write_vectors:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
-	
-	move.b #0, (DPRAM_0+256*2)
-	move.b #15, DPRAM_0
 	
 	bsr buffer_setup
 	bsr setup_duart
@@ -145,19 +143,12 @@ b_rx_ready:
 	puts_imm "Bad"
 	rts
 .framing_and_overrun_ok:
-	clr.l D5
-	move.b (A4, DUART_RBB), D5
+	clr.l D0
+	move.b (A4, DUART_RBB), D0
 	;; print recvd character
-	move.b spin_pointer, D0
-	; if only... move.b D5, (DPRAM_0, D0*2)
-	add.w D0, D0
-	move.l #DPRAM_0, A1
-	move.b D5, (A1,D0)
-	
-	asr.w #1, D0
-	addq.b #1, D0
-	move.b D0, spin_pointer
-	move.b D0, DPRAM_0+256*2
+	jsr shared_a_begin
+	jsr shared_push
+	jsr shared_a_end
 parser_retry:
 	move.l parser_state, A0
 	jmp (A0)
@@ -317,12 +308,6 @@ ps_command_w:
 
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
-	move.l #DPRAM_0, D0
-	move.l D0, spin_pointer
-	move.b D0, (DPRAM_0+256*2)
-	clr.b SHARED_A_WRITE
-	clr.b SHARED_M_READ
-	
 	move.l #ps_default, parser_state
 	
 	lea DUART_0, A4
@@ -481,21 +466,3 @@ puts:
 	move.w A0, buffer_write_ptr
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
 	rts
-	
-;todo:
-DPRAM_SEND_BUFFER = DPRAM_0
-DPRAM_RECV_BUFFER = DPRAM_0+$100
-DPRAM_WRITE_PTR = DPRAM_0+$200
-DPRAM_READ_PTR = DPRAM_0+$201
-dpram_write_pointer = $1000
-dpram_read_pointer = $1004
-
-dpram_setup:	
-	move.b $00, DPRAM_WRITE_PTR
-	move.b $00, DPRAM_READ_PTR
-	rts
-
-	;; D0
-dpram_send:	
-	rts
-	

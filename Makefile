@@ -5,8 +5,8 @@ P2BIN = p2bin
 
 all: test2.main.bin audiocpu3.audio.bin
 
-test2.p: font2.s
-audiocpu3.p: duart-68000.s otis.s
+test2.p: font2.s shared-ram.s
+audiocpu3.p: duart-68000.s otis.s shared-ram.s
 
 %.p: %.s
 	@echo "---"
