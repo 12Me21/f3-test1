@@ -35,6 +35,11 @@ das = $400300
 
 dpram_read_ptr = $400400
 
+parser_state = $400500
+parser_next = parser_state+4
+parser_acc = parser_next+4
+parser_acc_len = parser_acc+4
+
 disable_interrupts	macro
 	ori.w #$700, SR
 	endm
@@ -824,6 +829,7 @@ entry:
 	move.l #$C00080, edit_addr
 	
 	move.l #DPRAM_0, dpram_read_ptr
+	move.l #ps_default, parser_state
 
 	moveq.l #6, D6
 	;enable_interrupts
@@ -880,9 +886,8 @@ loop:
 .read_dpram:
 	cmpa.l A1, A0
 	beq .nomore
-	move.b (A0)+, D0
-	push.l D0
-	logf4 1, "\xFF\x05%c"
+	move.b (A0)+, D5
+	jsr got_byte
 	cmpa.l #(DPRAM_0+256), A0
 	bne .read_dpram
 	lea DPRAM_0, A0
@@ -892,6 +897,102 @@ loop:
 .ret:
 	rts
 	
+	;; D0
+got_byte:	
+	movem.l	A0/A1, -(SP)
+	jsr ([parser_state])
+	movem.l	(SP)+, A0/A1
+	rts
+	
+ps_default:
+	cmp.b #'A', D5
+	bne .n1
+	move.l #ps_address, parser_state
+	move.l #ps_command_p, parser_next
+	move.w #6-1, parser_acc_len
+	clr.l parser_acc
+	rts
+.n1:
+	cmp.b #'w', D5
+	bne .n2
+	move.l #ps_address, parser_state
+	move.l #ps_command_w, parser_next
+	move.w #8-1, parser_acc_len
+	clr.l parser_acc
+	rts
+.n2:
+	push.l D5
+	logf4 1, "\xFF\x05%c"
+	
+	rts
+	
+load_rel_b MACRO data, register
+	addi.w #(data-(.testz+2)), register
+.testz:
+	move.b (PC, register), register
+	ENDM
+	
+	;; in: D0
+	;; out: D0, flags
+hex_char_to_ascii:	
+	load_rel_b .HEX_TABLE, D0
+	rts
+.HEX_TABLE:	
+	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
+	Align 2
+
+ps_address:	
+	move.w D5, D0
+	bsr hex_char_to_ascii
+	bmi .fail
+	move.l parser_acc, D2
+	lsl.l #4, D2
+	;add.w parser_acc_len, D0
+	add.b D0, D2
+	move.l D2, parser_acc
+	subq.w #1, parser_acc_len
+	bmi .end
+	rts
+.end:
+	move.l parser_next, parser_state
+	rts
+.fail:
+	;; reset
+	clr.l D0
+	move.w parser_acc, D0
+	push.l D0
+	logf4 1, "bad addr. %x\n"
+	
+	move.l #ps_default, parser_state
+	jmp ([parser_state])
+	
+
+ps_command_p:
+	move.l #ps_default, parser_state
+	
+	move.l parser_acc, A0
+	clr.l D0
+	move.b (A0), D0
+	
+	push.l D0
+	push.l A0
+	logf4 2,"READ:@%6X=%2X\n"
+	
+	rts
+
+ps_command_w:
+	move.l #ps_default, parser_state
+	move.l parser_acc, D0
+	push.l D0
+	logf4 1, "w%8X"
+	
+	move.b D0, D1
+	lsr.l #8, D0
+	move.l D0, A0
+	move.b D1, (A0)
+	logf4 0,"/\n"
+	rts
+
 	;; let's arrange: 
 	;; up down left right b1 b2 b3 start
 buttons:	
