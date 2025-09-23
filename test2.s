@@ -11,7 +11,7 @@ TEXT_RAM = $61C000
 
 SOUND_RESET_START = $C80100
 SOUND_RESET_END = $C80000
-SHARED_RAM = $C00000
+DPRAM_0 = $C00000
 	
 PVT_X = $660018
 PVT_Y = $66001A
@@ -32,6 +32,8 @@ rising_btn = $400184
 edit = $400200
 edit_addr = $400204
 das = $400300
+
+dpram_read_ptr = $400400
 
 disable_interrupts	macro
 	ori.w #$700, SR
@@ -734,7 +736,7 @@ setup_sprites:
 	
 setup_sound:	
 	clr.w SOUND_RESET_START 	  ;ideally, we could load into a register and then do clr.w (A0)+ ... clr.w (A0)
-	lea SHARED_RAM, A1
+	lea DPRAM_0, A1
 	move.w #($200-1), D1
 .loop:
 	clr.l (A1)+
@@ -819,8 +821,10 @@ entry:
 	
 	jsr log_adj_scroll
 	move.l #0, edit
-	move.l #$C00000, edit_addr
+	move.l #$C00080, edit_addr
 	
+	move.l #DPRAM_0, dpram_read_ptr
+
 	moveq.l #6, D6
 	;enable_interrupts
 	bra spin
@@ -832,7 +836,7 @@ s_WAIT_A_MOMENT:
 s_frame:	
 	dc.b	"FRAME:\xFF%c%d\0"
 	align 2
-	
+
 loop:
 	;move.l counter1, D0
 	;move.l 	D0, -(SP)
@@ -863,10 +867,26 @@ loop:
 	;move.w (counter1+2), $660008
 	
 	addq.l #1, counter1
-	cmpi.l #60, counter1
-	ble .ret 						  ; ignore buttons in the first second
+	cmpi.l #30, counter1
+	ble .ret 						  ; ignore buttons in the half second
 	;; read btns
 	jsr process_inputs
+	
+	move.b DPRAM_0+256, D0 		  ; write pointer
+	lea (DPRAM_0,D0), A1
+	move.l dpram_read_ptr, A0 	  ; read pointer
+.read_dpram:
+	cmpa.l A1, A0
+	beq .nomore
+	move.b (A0)+, D0
+	push.l D0
+	logf4 1, "\xFF\x05%c"
+	cmpa.l #(DPRAM_0+256), A0
+	bne .read_dpram
+	lea DPRAM_0, A0
+	bra .read_dpram
+.nomore:
+	move.l A0, dpram_read_ptr
 .ret:
 	rts
 	

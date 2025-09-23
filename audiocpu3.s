@@ -90,6 +90,7 @@ entry:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
 	
+	move.b #0, (DPRAM_0+256*2)
 	move.b #15, DPRAM_0
 	
 	bsr buffer_setup
@@ -144,13 +145,16 @@ b_rx_ready:
 	clr.l D5
 	move.b (A4, DUART_RBB), D5
 	;; print recvd character
-	move.l spin_pointer, A1
-	move.b D5, (A1)
-	adda.w #2, A1
-	move.l A1, spin_pointer
-	andi.w #$1FF, (spin_pointer+2)
-	move.w (spin_pointer+2), D0
-	move.b D0, (DPRAM_0+256*2)
+	move.b spin_pointer, D0
+	; if only... move.b D5, (DPRAM_0, D0*2)
+	add.w D0, D0
+	move.l #DPRAM_0, A1
+	move.b D5, (A1,D0)
+	
+	asr.w #1, D0
+	addq.b #1, D0
+	move.b D0, spin_pointer
+	move.b D0, DPRAM_0+256*2
 parser_retry:
 	move.l parser_state, A0
 	jmp (A0)
@@ -310,7 +314,10 @@ ps_command_w:
 
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
-	move.l #DPRAM_0, spin_pointer
+	move.l #DPRAM_0, D0
+	move.l D0, spin_pointer
+	move.b D0, (DPRAM_0+256*2)
+	
 	move.l #ps_default, parser_state
 	
 	lea DUART_0, A4
