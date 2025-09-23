@@ -362,6 +362,29 @@ printf:
 	jsr	print_str
 	unlk	A6
 	rtd #$A
+
+stdout_printf:
+.format = 8
+.rest = .format+4
+.buffer = -$40
+	link.w A6, #.buffer
+	movem.l	A1/A0/D7/D1/D0, -(SP)
+	pea	(.rest,A6)
+	move.l	(.format,A6), -(SP)
+	pea	(.buffer,A6)
+	jsr sprintf
+	lea (.buffer,A6), A2
+	jsr stdout_begin
+.loop:
+	move.b (A2)+, D0
+	beq .exit
+	jsr shared_push
+	bra .loop
+.exit:
+	jsr stdout_end
+	movem.l	(SP)+, A1/A0/D7/D1/D0
+	unlk A6
+	rtd #$4
 	
 logf:
 .format = 8
@@ -885,8 +908,10 @@ loop:
 .read:
 	clr.l D0
 	jsr shared_pop
+	;push.l parser_state
 	;push.l D0
-	;logf4 1, "got byte: %x\n"
+	;logf4 2, "got byte: %x in state %x\n"
+	move.l D0, D5
 	bsr got_byte
 .read_start
 	jsr shared_check_remaining
@@ -975,9 +1000,14 @@ ps_command_p:
 	
 	push.l D0
 	push.l A0
-	logf4 2,"READ:@%6X=%2X\n"
+	pea .msg
+	jsr stdout_printf
+	drop 4*2
 	
 	rts
+.msg:
+	dc.b "READ:@%6X=%2X\n"
+	align 2
 
 ps_command_w:
 	move.l #ps_default, parser_state
