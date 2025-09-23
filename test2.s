@@ -878,16 +878,16 @@ loop:
 	ble .n1 						  ; ignore buttons in the first half second
 	;; read btns
 	jsr process_inputs
-.n1
-
+.n1:
+	
 	jsr stdin_begin
 	bra .read_start
 .read:
 	clr.l D0
 	jsr shared_pop
-	push.l D0
-	logf4 1, "got byte: %x\n"
-	;bsr got_byte
+	;push.l D0
+	;logf4 1, "got byte: %x\n"
+	bsr got_byte
 .read_start
 	jsr shared_check_remaining
 	bne .read
@@ -992,6 +992,20 @@ ps_command_w:
 	logf4 0,"/\n"
 	rts
 
+puts:									  ; takes A2 (todo: just use stack params)
+	movem.l	A0/A1/D0/D7, -(SP)	
+	jsr stdout_begin
+.loop:
+	move.b (A2)+, D0
+	beq .exit
+	jsr shared_push
+	bra .loop
+.exit:
+	jsr stdout_end
+	;move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
+	movem.l	(SP)+, A0/A1/D0/D7
+	rts
+
 	;; let's arrange: 
 	;; up down left right b1 b2 b3 start
 buttons:	
@@ -1091,6 +1105,9 @@ buttons:
 	logf4 2, "\xFF\x02write[%6X] <- %02X\n"
 	rts
 .c:
+	lea s_WAIT_A_MOMENT, A2 
+	jsr puts
+	
 	lea 0, A0
 	movem.l (A0), D0/D1/D2
 	push.l D0

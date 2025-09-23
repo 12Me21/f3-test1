@@ -135,6 +135,8 @@ b_tx_ready:
 	beq .empy
 	jsr shared_pop
 	move.b D0, (A4, DUART_TBB)
+	jsr shared_check_remaining
+	beq .empy
 .ret:
 	jsr stdout_end
 	rts
@@ -330,15 +332,15 @@ setup_duart:
 	;; program channel B for 62500 baud 8N1
 	move.b #$13, (A4, DUART_MRB) ; - 8bit, no parity, error mode = char, Rx IRQ = RxRDY, Rx RTS off 
 	move.b #$07, (A4, DUART_MRB) ; - stop bit length = 1.0, CTS off, Tx RTS off, channel mode normal
-	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1mhz -> 62500 baud)
+	move.b #$EE, (A4, DUART_CSRB); - baud rate: TX = IP5 16X, RX = IP2 16X (IP2/5 are 1MHz -> 62500 baud)
 	move.b #(DUART_CR_ENABLE_RX | DUART_CR_ENABLE_TX), (A4, DUART_CRB)
 	
 	;; set up timer
-	move.w #2500, D0
+	move.w #2500, D0 				  ; will be 4MHz / 2500 = 1600Hz
 	movep.w D0, (A4, DUART_CTUR)
-	move.b #$60, (A4, DUART_ACR) ; Timer mode, use external clock (4mhz)
+	move.b #$60, (A4, DUART_ACR) ; Timer mode, use external clock (4MHz)
 	;; enable interrupts: RxRDYB and counter
-	move.b #(DUART_IMR_RX_B | DUART_IMR_TX_B), (A4, DUART_IMR)
+	move.b #(DUART_IMR_RX_B | DUART_IMR_TX_B | DUART_IMR_COUNTER), (A4, DUART_IMR)
 	
 	rts
 	
@@ -395,8 +397,16 @@ setup_esp:
 	move.b #2, ESP_HALT
 	rts
 	
+	org $8000
 timer_ready:	
-	
+	;; check if we have any data to re-enable tx for (in case it was written by main cpu)
+	move.l STDOUT_READ, D0 		  ; fast way to read STDOUT_READ and _WRITE
+	move.b D0, D1
+	swap D0
+	cmp.w D0, D1
+	beq .empy
+	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
+.empy:
 	rts
 	
 	;; takes D0
