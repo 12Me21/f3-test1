@@ -935,6 +935,8 @@ got_byte:
 	rts
 	
 ps_default:
+	push.l D5
+	logf4 1, "\xFF\x05%c"
 	cmp.b #'A', D5
 	bne .n1
 	move.l #ps_address, parser_state
@@ -951,8 +953,6 @@ ps_default:
 	clr.l parser_acc
 	rts
 .n2:
-	push.l D5
-	logf4 1, "\xFF\x05%c"
 	
 	rts
 	
