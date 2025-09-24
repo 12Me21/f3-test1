@@ -48,12 +48,14 @@ shared_begin_operation MACRO buffer, read, write, lock
 	lea buffer, A0
 	move.b write, D7
 	IFDEF IS_AUDIO
-	asl.w D7
+	asl.w #1, D7
 	ENDIF
 	lea (A0, D7), A1				  ; write ptr
+	;; oh my god i forgot to clear the upper bit here, which can be set because of the shift...
+	clr.w D7
 	move.b read, D7
 	IFDEF IS_AUDIO
-	asl.w D7
+	asl.w #1, D7
 	ENDIF
 	lea (A0, D7), A0 				  ; read ptr
 	ENDM
@@ -61,12 +63,12 @@ shared_begin_operation MACRO buffer, read, write, lock
 shared_end_operation MACRO buffer, read, write, lock
 	move.w A1, D7
 	IFDEF IS_AUDIO
-	asr.w D7
+	asr.w #1, D7
 	ENDIF
 	move.b D7, write
 	move.w A0, D7
 	IFDEF IS_AUDIO
-	asr.w D7
+	asr.w #1, D7
 	ENDIF
 	move.b D7, read
 	atomic_end lock
