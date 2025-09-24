@@ -903,12 +903,12 @@ loop:
 	jsr process_inputs
 .n1:
 	
-	jsr stdout_begin
-	push.l A1
-	push.l A0
-	jsr stdout_end
+	;; jsr stdout_begin
+	;; push.l A1
+	;; push.l A0
+	;; jsr stdout_end
 	
-	logf4 2, "stdout %x/%x\n"
+	;; logf4 2, "stdout %x/%x\n"
 	jsr stdin_begin
 	bra .read_start
 .read:
@@ -1004,13 +1004,15 @@ ps_command_p:
 	clr.l D0
 	move.b (A0), D0
 	
-	lea .msg, A2
-	jsr puts
+	push.l D0
+	push.l A0
+	push.l #.msg
+	jsr stdout_printf
+	drop 4*2
 	
 	rts
 .msg:
-	dc.b "abcdaaaaaaaaaaaaaaaaa\n\0"
-	;dc.b "READ:@%6X=%2X\n\0"
+	dc.b "READ:@%6X=%2X\n\0"
 	align 2
 
 ps_command_w:

@@ -143,7 +143,7 @@ b_tx_ready:
 	jsr stdout_end
 	rts
 .empy:
-	;move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
+	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
 	bra .ret
 
 b_rx_ready:	
@@ -400,14 +400,12 @@ setup_esp:
 	rts
 	
 timer_ready:
-	rts
-	;; temp disabled
 	jsr stdout_begin
 	jsr shared_check_remaining
 	beq .empy
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	btst.b #2, (DUART_0+DUART_SRB)
-	bne b_tx_ready.inner
+	;btst.b #2, (DUART_0+DUART_SRB)
+	;bne b_tx_ready.inner
 .empy:
 	jsr stdout_end
 	rts
