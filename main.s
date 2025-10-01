@@ -308,7 +308,6 @@ sprintf:
 	BINCLUDE "sprintf.bin"
 	rts
 	
-
 printf:
 .format = 8
 .rest = .format+4
@@ -319,6 +318,7 @@ printf:
 	move.l	(.format,A6), -(SP)
 	pea	(.buffer,A6)
 	jsr sprintf
+	drop 4*3
 	lea (.buffer,A6), A2
 	jsr stdout_begin
 .loop:
@@ -637,6 +637,9 @@ _entry:
 	lea (RAM_BASE).l, A5
 	nop
 	jsr setup_audio_shared
+	pea s_WAIT_A_MOMENT
+	jsr printf
+	drop 1*4
 	
 	clr.l counter1
 	jsr setup_fio
@@ -663,7 +666,7 @@ _entry:
 	bra spin
 	
 s_WAIT_A_MOMENT:
-	dc.b	"WAIT FOR EVER %X -- \xFF\x10 HI!\0"
+	dc.b	"WAIT FOR EVER %X -- \x1B[31m HI!\x1B[m\n", 0
 	ALIGN 2
 	
 s_frame:	

@@ -28,12 +28,20 @@ STDOUT_LOCK = dpram_addr($302)
 	;; now, do our stuff
 	;; end atomic operation: (at this point we know we are in control)
 	;; - clear the flag
+
+nop2 MACRO
+	IFDEF IS_AUDIO
+	nop
+	ELSEIF
+	trapf								  ;on 68020, nop has other effects
+	ENDIF
+	ENDM
 	
 atomic_begin_sync MACRO lock
 .loop:
-	nop
+	nop2
 	tas.b lock
-	bmi .loop						  ;todo: we should have a delay before checking again, so we don't slow down the other device
+	bmi .loop ;todo: we should have a delay before checking again, so we don't slow down the other device
 	ENDM
 
 atomic_end MACRO lock
