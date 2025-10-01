@@ -77,13 +77,24 @@ shared_end_operation MACRO buffer, lock
 	atomic_end lock
 	ENDM
 	
-	;; A1: ptr to the buffer
-	;; D7: offset of the lock/pointer
+	;; A1: ptr to the lock !
 shared_begin:
 .loop:
 	nop2
-	tas.b (A1, D7)
+	tas.b (A1)
 	bmi .loop
+	move.w A1, D7 					  ; D7 = [.... ..n0 0000 00rL]
+	
+	;; what we want to do:
+	;; 1: read the read/write ptr
+	;; 2: change A1 to point to the buffer
+	;; 3: add the read/write ptr to A1
+	
+	;; orr.. what if we just  made A1 point to the buffer the whole time and always offset it by D7
+	;; at first D7 can be the location of the lock, and then later it can be the pointer value!
+	;; also... how are we going to end the operation later?
+	;; do we have to set D7 ~~and A1~~ again then?
+	
 	move.b (A1, D7, 1), D7			  ;get the read/write pointer
 	IFDEF IS_AUDIO
 	asl.w #1, D7
