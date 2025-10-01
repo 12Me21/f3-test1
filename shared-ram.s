@@ -93,7 +93,7 @@ shared_begin:
 	;; orr.. what if we just  made A1 point to the buffer the whole time and always offset it by D7
 	;; at first D7 can be the location of the lock, and then later it can be the pointer value!
 	;; also... how are we going to end the operation later?
-	;; do we have to set D7 ~~and A1~~ again then?
+	;; do we have to set D7 and A1 again then?
 	
 	move.b (A1, D7, 1), D7			  ;get the read/write pointer
 	IFDEF IS_AUDIO
