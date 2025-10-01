@@ -77,10 +77,19 @@ shared_end_operation MACRO buffer, lock
 	atomic_end lock
 	ENDM
 	
-	;; A1: ptr to the lock !
+	;; A1: ptr to the buffer
+	;; D7: offset of the lock/pointer
 shared_begin:
-	tas.b A1
+.loop:
+	nop2
+	tas.b (A1, D7)
+	bmi .loop
+	move.b (A1, D7, 1), D7			  ;get the read/write pointer
+	IFDEF IS_AUDIO
+	asl.w #1, D7
+	ENDIF
 	
+	rts
 	
 stdin_begin:
 	shared_begin_operation STDIN_BUFFER, STDIN_READ_LOCK
@@ -110,8 +119,8 @@ shared_check_remaining:
 	;; shared_pop / shared_push
 	;; shared_increment (the usual)
 shared_push2:	
-	move.b D0, (A1, D7*2)
-	addq.b 1, D7
+;	move.b D0, (A1, D7*2)
+;	addq.b 1, D7
 	rts
 	
 
