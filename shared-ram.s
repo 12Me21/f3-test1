@@ -55,54 +55,47 @@ atomic_end MACRO lock
 	clr.b lock
 	ENDM
 	
-	;; these all use: D7, A0, A1
+;; these all use: D7, A1
 
-shared_begin_operation MACRO buffer, read, write, lock
+shared_begin_operation MACRO buffer, lock
 	atomic_begin_sync lock
 	clr.l D7
-	lea buffer, A0
-	move.b write, D7
+	lea buffer, A1
+	move.b lock+1, D7
 	IFDEF IS_AUDIO
 	asl.w #1, D7
 	ENDIF
-	lea (A0, D7), A1				  ; write ptr
-	;; oh my god i forgot to clear the upper bit here, which can be set because of the shift...
-	clr.w D7
-	move.b read, D7
-	IFDEF IS_AUDIO
-	asl.w #1, D7
-	ENDIF
-	lea (A0, D7), A0 				  ; read ptr
+	lea (A1, D7), A1
 	ENDM
 	
-shared_end_operation MACRO buffer, read, write, lock
+shared_end_operation MACRO buffer, lock
 	move.w A1, D7
 	IFDEF IS_AUDIO
 	asr.w #1, D7
 	ENDIF
-	move.b D7, write
-	move.w A0, D7
-	IFDEF IS_AUDIO
-	asr.w #1, D7
-	ENDIF
-	move.b D7, read
+	move.b D7, lock+1
 	atomic_end lock
 	ENDM
 	
+	;; A1: ptr to the lock !
+shared_begin:
+	tas.b A1
+	
+	
 stdin_begin:
-	shared_begin_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_READ_LOCK
+	shared_begin_operation STDIN_BUFFER, STDIN_READ_LOCK
 	rts
 	
 stdin_end:	
-	shared_end_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_READ_LOCK
+	shared_end_operation STDIN_BUFFER, STDIN_READ_LOCK
 	rts
 	
 stdout_begin:	
-	shared_begin_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_READ_LOCK
+	shared_begin_operation STDOUT_BUFFER, STDOUT_READ_LOCK
 	rts
 	
 stdout_end:	
-	shared_end_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_READ_LOCK
+	shared_end_operation STDOUT_BUFFER, STDOUT_READ_LOCK
 	rts
 	
 shared_check_remaining:	
