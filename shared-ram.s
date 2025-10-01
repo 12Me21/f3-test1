@@ -95,6 +95,12 @@ shared_begin:
 	;; also... how are we going to end the operation later?
 	;; do we have to set D7 and A1 again then?
 	
+	;; also i dont want this to be locked to specific vars (at least not for reading vs writing) since in case we want to write code to transfer from one buffer to another...
+	;;  hmmmm...
+	;; but i do want the increment stuff to be fast
+	;; uh let's go back to separate A1 vs A0 perhaps then.....
+	;; ugh  so tired..
+	
 	move.b (A1, D7, 1), D7			  ;get the read/write pointer
 	IFDEF IS_AUDIO
 	asl.w #1, D7
