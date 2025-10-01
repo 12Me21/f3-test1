@@ -101,6 +101,8 @@ shared_begin:
 	;; uh let's go back to separate A1 vs A0 perhaps then.....
 	;; ugh  so tired..
 	
+	;; order: separate functions for read/write, but A1 determines buffer. address (A1, D7), do math on D7 leave A1 unchanged.
+	
 	move.b (A1, D7, 1), D7			  ;get the read/write pointer
 	IFDEF IS_AUDIO
 	asl.w #1, D7
