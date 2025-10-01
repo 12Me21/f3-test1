@@ -9,18 +9,19 @@ SHARED_ADDR_MASK = (~($100*SHARED_ADDR_STRIDE))
 	ENDIF
 	WARNING "SHARED_ADDR_MASK = \{SHARED_ADDR_MASK}"
 dpram_addr	FUNCTION x, DPRAM_0+x*SHARED_ADDR_STRIDE
+
+STREAM STRUCT
+BUFFER dc.b [$100*SHARED_ADDR_STRIDE]?
+READ_LOCK dc.b	[SHARED_ADDR_STRIDE]?
+READ dc.b [SHARED_ADDR_STRIDE]?
+WRITE_LOCK dc.b [SHARED_ADDR_STRIDE]?
+WRITE	dc.b [SHARED_ADDR_STRIDE]?
+STREAM ENDSTRUCT	
+
 	;; "A" buffer - "stdin" (audio cpu moves data from: duart recieve buffer B -> stdin)
-STDIN_BUFFER = dpram_addr($000)
-STDIN_READ_LOCK = dpram_addr($100)
-STDIN_READ = dpram_addr($101)
-STDIN_WRITE_LOCK = dpram_addr($102)
-STDIN_WRITE = dpram_addr($103)
+STDIN_0 = dpram_addr($000)
 	;; "M" buffer - "stdout" (audio cpu moves data from: stdout -> duart transmit buffer B)
-STDOUT_BUFFER = dpram_addr($200)
-STDOUT_READ_LOCK = dpram_addr($200)
-STDOUT_READ = dpram_addr($201)
-STDOUT_WRITE_LOCK = dpram_addr($202)
-STDOUT_WRITE = dpram_addr($203)
+STDOUT_0 = dpram_addr($200)
 	;; note that both cpus can read and write to either buffer.
 	
 	;; important! the buffers must have an address pattern like:
@@ -44,6 +45,11 @@ nop2 MACRO
 	ENDIF
 	ENDM
 	
+	;; only use this during init (to set the lock for the first time ever)!
+atomic_begin_FORCE MACRO lock
+	st.b lock
+	ENDM
+	
 atomic_begin_sync MACRO lock
 .loop:
 	nop2
@@ -52,141 +58,89 @@ atomic_begin_sync MACRO lock
 	ENDM
 
 atomic_end MACRO lock
-	clr.b lock
+	sf.b lock
 	ENDM
 	
-;; these all use: D7, A1
-
-shared_begin_operation MACRO buffer, lock
-	atomic_begin_sync lock
-	clr.l D7
-	lea buffer, A1
-	move.b lock+1, D7
+load_spin MACRO location, register
+	clr.w register
+	move.b location, register
 	IFDEF IS_AUDIO
-	asl.w #1, D7
+	asl.w #1, register
 	ENDIF
-	lea (A1, D7), A1
 	ENDM
 	
-shared_end_operation MACRO buffer, lock
-	move.w A1, D7
+store_spin MACRO register, location
 	IFDEF IS_AUDIO
-	asr.w #1, D7
+	asr.w #1, register
 	ENDIF
-	move.b D7, lock+1
-	atomic_end lock
+	move.b register, location
 	ENDM
 	
-	;; A1: ptr to the lock !
-shared_begin:
-.loop:
-	nop2
-	tas.b (A1)
-	bmi .loop
-	move.w A1, D7 					  ; D7 = [.... ..n0 0000 00rL]
-	
-	;; what we want to do:
-	;; 1: read the read/write ptr
-	;; 2: change A1 to point to the buffer
-	;; 3: add the read/write ptr to A1
-	
-	;; orr.. what if we just  made A1 point to the buffer the whole time and always offset it by D7
-	;; at first D7 can be the location of the lock, and then later it can be the pointer value!
-	;; also... how are we going to end the operation later?
-	;; do we have to set D7 and A1 again then?
-	
-	;; also i dont want this to be locked to specific vars (at least not for reading vs writing) since in case we want to write code to transfer from one buffer to another...
-	;;  hmmmm...
-	;; but i do want the increment stuff to be fast
-	;; uh let's go back to separate A1 vs A0 perhaps then.....
-	;; ugh  so tired..
-	
-	;; order: separate functions for read/write, but A1 determines buffer. address (A1, D7), do math on D7 leave A1 unchanged.
-	
-	move.b (A1, D7, 1), D7			  ;get the read/write pointer
-	IFDEF IS_AUDIO
-	asl.w #1, D7
-	ENDIF
-	
+	;; register usage:
+	;; D6: read offset
+	;; D7: write offset
+	;; A1: pointer to buffer struct
+buffer_begin_read:
+	atomic_begin_sync (A1, STREAM_READ_LOCK)
+	load_spin (A1, STREAM_READ), D6
+	load_spin (A1, STREAM_WRITE), D7
 	rts
 	
-stdin_begin:
-	shared_begin_operation STDIN_BUFFER, STDIN_READ_LOCK
+buffer_begin_write:
+	atomic_begin_sync (A1, STREAM_WRITE_LOCK)
+	load_spin (A1, STREAM_READ), D6
+	load_spin (A1, STREAM_WRITE), D7
 	rts
 	
-stdin_end:	
-	shared_end_operation STDIN_BUFFER, STDIN_READ_LOCK
+buffer_end_read:
+	store_spin D6, (A1, STREAM_READ)
+	store_spin D7, (A1, STREAM_WRITE)
+	atomic_end (A1, STREAM_READ_LOCK)
 	rts
 	
-stdout_begin:	
-	shared_begin_operation STDOUT_BUFFER, STDOUT_READ_LOCK
+buffer_end_write:
+	store_spin D6, (A1, STREAM_READ)
+	store_spin D7, (A1, STREAM_WRITE)
+	atomic_end (A1, STREAM_WRITE_LOCK)
 	rts
 	
-stdout_end:	
-	shared_end_operation STDOUT_BUFFER, STDOUT_READ_LOCK
+buffer_check_remaining:	
+	cmp.w D7, D6
 	rts
 	
-shared_check_remaining:	
-	cmpa.l A1, A0
-	rts
-	
-	;; new protocol:
-	;; <buffer>_begin_read (locks for read, sets A0)
-	;; <buffer>_begin_write (locks for write, sets A0)
-	;; <buffer>_end_read (writes A0, unlocks for read)
-	;; <buffer>_end_write (writes A0, unlocks for write)
-	;; shared_pop / shared_push
-	;; shared_increment (the usual)
-shared_push2:	
-;	move.b D0, (A1, D7*2)
-;	addq.b 1, D7
-	rts
-	
-
-	;; tbh it's probably not worth using address registers for this
-	;; or maybe use (A1, D7) or something. ah but then that wastes e.g. D6,D7,A1 instead of D7,A1,A0
-	
-shared_increment_read:
-	move.l A0, D7
+	;; D0: input
+buffer_push:
+	move.b D0, (A1, D7)
+buffer_increment_write:
 	addq.w #SHARED_ADDR_STRIDE, D7
 	andi.w #SHARED_ADDR_MASK, D7
-	move.l D7, A0
-	rts
-
-shared_increment_write:
-	move.l A1, D7
-	addq.w #SHARED_ADDR_STRIDE, D7
-	andi.w #SHARED_ADDR_MASK, D7
-	move.l D7, A1
 	rts
 	
-shared_push:
-	move.b D0, (A1)
-	jsr shared_increment_write
-	rts
-	
-shared_pop:
-	move.b (A0), D0
-	jsr shared_increment_read
+	;; D0: output
+buffer_pop:
+	move.b (A1, D6), D0
+buffer_increment_read:
+	addq.w #SHARED_ADDR_STRIDE, D6
+	andi.w #SHARED_ADDR_MASK, D6
 	rts
 	
 	IFDEF AUDIO
 	ELSE
 	;; only one cpu should do this!
-shared_init:	
-	st.b STDIN_READ_LOCK
-	clr.b STDIN_READ
-	clr.b STDIN_WRITE
-	sf.b STDIN_READ_LOCK
-	st.b STDOUT_READ_LOCK
-	clr.b STDOUT_READ
-	clr.b STDOUT_WRITE
-	sf.b STDOUT_READ_LOCK
+buffer_init:	
+	atomic_begin_FORCE (A1, STREAM_READ_LOCK)
+	clr.b (A1, STREAM_READ)
+	clr.b (A1, STREAM_WRITE)
+	atomic_end (A1, STREAM_READ_LOCK)
+	rts
+	
+setup_shared:
+	lea STDIN_0, A1
+	bsr buffer_init
+	lea STDOUT_0, A1
+	bsr buffer_init
 	rts
 	ENDIF
 	
-	
 	;; todo:
 	;;disable interrupts?
-	;; think about when we actually need to lock things vs just checking for lock state
-	;; (e.g. it's ok to read without locking i think)

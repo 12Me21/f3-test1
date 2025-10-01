@@ -320,14 +320,15 @@ printf:
 	jsr sprintf
 	drop 4*3
 	lea (.buffer,A6), A2
-	jsr stdout_begin
+	lea STDOUT_0, A1
+	jsr buffer_begin_write
 .loop:
 	move.b (A2)+, D0
 	beq .exit
-	jsr shared_push
+	jsr buffer_push
 	bra .loop
 .exit:
-	jsr stdout_end
+	jsr buffer_end_write
 	movem.l	(SP)+, A2/A1/A0/D7/D1/D0
 	unlk A6
 	rtd #$4
@@ -628,7 +629,7 @@ setup_audio_shared:
 .loop:
 	clr.l (A1)+
 	dbf D1, .loop
-	jsr	shared_init
+	jsr	setup_shared
 	clr.w SOUND_RESET_CLEAR
 	rts
 	
@@ -687,29 +688,30 @@ loop:
 	;; jsr stdout_end
 	
 	;; printf4 2, "stdout %x/%x\n"
-	jsr stdin_begin
+	lea STDIN_0, A1
+	jsr buffer_begin_read
 	bra .read_start
 .read:
 	clr.l D0
-	jsr shared_pop
+	jsr buffer_pop
 	;push.l parser_state
 	;push.l D0
 	;printf4 2, "got byte: %x in state %x\n"
 	move.l D0, D5
 	bsr got_byte
 .read_start
-	jsr shared_check_remaining
+	jsr buffer_check_remaining
 	bne .read
-	jsr stdin_end
+	jsr buffer_end_read
 	
 .ret:
 	rts
 
 	;; D0
 got_byte:	
-	movem.l	A0/A1, -(SP)
+	movem.l	A1/D6/D7, -(SP)
 	jsr ([parser_state])
-	movem.l	(SP)+, A0/A1
+	movem.l	(SP)+, A1/D6/D7
 	rts
 	
 ps_default:
@@ -807,17 +809,18 @@ ps_command_w:
 	;; TODO: add a version that uses MOVES so we can test the different address spaces.
 
 puts:									  ; takes A2 (todo: just use stack params)
-	movem.l	A0/A1/D0/D7, -(SP)	
-	jsr stdout_begin
+	movem.l	A1/D0/D6/D7, -(SP)	
+	lea STDOUT_0, A1
+	jsr buffer_begin_write
 .loop:
 	move.b (A2)+, D0
 	beq .exit
-	jsr shared_push
+	jsr buffer_push
 	bra .loop
 .exit:
-	jsr stdout_end
+	jsr buffer_end_write
 	;move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	movem.l	(SP)+, A0/A1/D0/D7
+	movem.l	(SP)+, A1/D0/D6/D7
 	rts
 
 	;; let's arrange: 

@@ -131,16 +131,17 @@ user_0:
 
 	org $8000
 b_tx_ready:	
-	jsr stdout_begin
-	jsr shared_check_remaining
+	lea STDOUT_0, A1
+	jsr buffer_begin_read
+	jsr buffer_check_remaining
 	beq .empy
 .inner:
-	jsr shared_pop
+	jsr buffer_pop
 	move.b D0, (A4, DUART_TBB)
-	jsr shared_check_remaining
+	jsr buffer_check_remaining
 	beq .empy
 .ret:
-	jsr stdout_end
+	jsr buffer_end_read
 	rts
 .empy:
 	move.b #DUART_CR_DISABLE_TX, (A4, DUART_CRB)
@@ -157,9 +158,10 @@ b_rx_ready:
 	clr.l D0
 	move.b (A4, DUART_RBB), D5
 	move.b D5, D0
-	jsr stdin_begin
-	jsr shared_push
-	jsr stdin_end
+	lea STDIN_0, A1
+	jsr buffer_begin_write
+	jsr buffer_push
+	jsr buffer_end_write
 	rts								  ;nevermind
 parser_retry:
 	move.l parser_state, A0
@@ -400,37 +402,40 @@ setup_esp:
 	rts
 	
 timer_ready:
-	jsr stdout_begin
-	jsr shared_check_remaining
+	lea STDOUT_0, A1
+	jsr buffer_begin_read
+	jsr buffer_check_remaining
 	beq .empy
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
 	;btst.b #2, (DUART_0+DUART_SRB)
 	;bne b_tx_ready.inner
 .empy:
-	jsr stdout_end
+	jsr buffer_end_read
 	rts
 	
 	;; takes D0
 putc:
-	movem.l	A0/A1/D0/D7, -(SP)
-	jsr stdout_begin
-	jsr shared_push
-	jsr stdout_end
+	movem.l	A1/D0/D6/D7, -(SP)
+	lea STDOUT_0, A1
+	jsr buffer_begin_read
+	jsr buffer_push
+	jsr buffer_end_read
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	movem.l	(SP)+, A0/A1/D0/D7
+	movem.l	(SP)+, A1/D0/D6/D7
 	rts
 	
 	;; takes A2
 puts:
-	movem.l	A0/A1/D0/D7, -(SP)	
-	jsr stdout_begin
+	movem.l	A1/D0/D6/D7, -(SP)	
+	lea STDOUT_0, A1
+	jsr buffer_begin_read
 .loop:
 	move.b (A2)+, D0
 	beq .exit
-	jsr shared_push
+	jsr buffer_push
 	bra .loop
 .exit:
-	jsr stdout_end
+	jsr buffer_end_read
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	movem.l	(SP)+, A0/A1/D0/D7
+	movem.l	(SP)+, A1/D0/D6/D7
 	rts
