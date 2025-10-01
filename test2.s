@@ -7,10 +7,15 @@ COLS = 39
 status_height = 2
 row_delta = $80
 cursor_domain = $DFFF
+
+	;; memory mapped address constants
+TIMER_CONTROL = $4C0000
+GRAPHICS_0 = $600000
+SOUND_RESET_ASSERT = $C80100
+SOUND_RESET_CLEAR = $C80000
+
 TEXT_RAM = $61C000
 
-SOUND_RESET_START = $C80100
-SOUND_RESET_END = $C80000
 DPRAM_0 = $C00000
 PVT_X = $660018
 PVT_Y = $66001A
@@ -19,6 +24,7 @@ LINERAM = $620000
 SPRITE_RAM = $600000
 FIO = $4a0000
 PF_CONTROL = $660000
+
 	
 RAM_BASE = $408000
 cursor = $400044
@@ -82,7 +88,7 @@ push    macro   op
 RESET_SP:
 	dc.l	$41FFFC
 RESET_PC:
-	dc.l	entry
+	dc.l _entry
 	org $8
 	dc.l [2]ex_access
 	org $10
@@ -278,14 +284,6 @@ COPYIMM	MACRO	dest, length
 	move	length, D1
 	jsr	copyimm
 	ENDM
-	
-get_imm_str:
-	
-	
-	
-	jmp (A6)
-	
-	
 	
 	;; 
 ;	movea.l (SP)+, A2
@@ -763,16 +761,6 @@ setup_sprites:
 	dc.w $3BE5, $0000, $0000, $0000, $7805, $0000, $0000, $0000
 	dc.w $0000, $0000, $0000, $0000, $7005, $0000, $0000, $0000
 	
-setup_sound:	
-	clr.w SOUND_RESET_START 	  ;ideally, we could load into a register and then do clr.w (A0)+ ... clr.w (A0)
-	lea DPRAM_0, A1
-	move.w #($200-1), D1
-.loop:
-	clr.l (A1)+
-	dbf D1, .loop
-	clr.w SOUND_RESET_END
-	rts
-
 load_game_font:
 	lea font_def, A0
 	lea $61E000, A1
@@ -813,32 +801,55 @@ s_INTMSG
 s_ERRBAD
 	dc.b	"BAD ERROR %08X!\0"
 	ALIGN 2
-	
-entry:
-	disable_interrupts
-	lea (RAM_BASE).l, A5
-	nop
-	move.l #TEXT_RAM, cursor
-	jsr shared_init
-	clr.l counter1
-	; setup fio
+
+setup_fio:	
 	move.b #0,$4a0000
 	move.b #0,$4a0006
 	move.b #255,$4a0016
 	move.b #0,$4a0004
 	move.b #0,$4a0014
-	; interrupt timer disable
-	move.w #$0000,$4c0000
-	; pf control
-	;move.w #$80,$66001e
-	;; clear graphics ram
+	rts
+	
+setup_graphics_ram:	
 	move.l #$FFFF, D0
-	lea $600000, A0
+	lea GRAPHICS_0, A0
 .loop1:
 	clr.l (A0)+
 	dbf D0, .loop1
-	;;
-	jsr	setup_sound
+	rts
+	
+setup_timer:	
+	move.w #$0000, TIMER_CONTROL
+	rts
+	
+setup_audio_shared:	
+	clr.w SOUND_RESET_ASSERT
+	lea DPRAM_0, A1
+	move.w #($200-1), D1
+.loop:
+	clr.l (A1)+
+	dbf D1, .loop
+	jsr	shared_init
+	clr.w SOUND_RESET_CLEAR
+	rts
+	
+_entry:
+	disable_interrupts
+	lea (RAM_BASE).l, A5
+	nop
+	move.l #TEXT_RAM, cursor
+	jsr setup_audio_shared
+	
+	clr.l counter1
+	jsr setup_fio
+	; setup fio
+	; interrupt timer disable
+	
+	; pf control
+	;move.w #$80,$66001e
+	;; clear graphics ram
+	jsr setup_timer
+	jsr setup_graphics_ram
 	
 	jsr 	setup_sprites
 	jsr	setup_scroll
@@ -854,9 +865,7 @@ entry:
 	move.l #$C00080, edit_addr
 	
 	move.l #ps_default, parser_state
-
-	moveq.l #6, D6
-	;enable_interrupts
+	
 	bra spin
 	
 s_WAIT_A_MOMENT:
@@ -1027,6 +1036,8 @@ ps_command_w:
 	move.b D1, (A0)
 	logf4 0,"/\n"
 	rts
+
+	;; TODO: add a version that uses MOVES so we can test the different address spaces.
 
 puts:									  ; takes A2 (todo: just use stack params)
 	movem.l	A0/A1/D0/D7, -(SP)	
