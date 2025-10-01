@@ -3,9 +3,9 @@ ASFLAGS = -n -U -q +t 70 -r 3
 # what the heck does +t 70 do?
 P2BIN = p2bin
 
-all: test2.main.bin audiocpu3.audio.bin
+all: main.main.bin audiocpu3.audio.bin
 
-test2.p: font2.s shared-ram.s
+main.p: font2.s shared-ram.s
 audiocpu3.p: duart-68000.s otis.s shared-ram.s
 
 %.p: %.s
