@@ -11,15 +11,22 @@ SHARED_ADDR_MASK = (~($100*SHARED_ADDR_STRIDE))
 dpram_addr	FUNCTION x, DPRAM_0+x*SHARED_ADDR_STRIDE
 	;; "A" buffer - "stdin" (audio cpu moves data from: duart recieve buffer B -> stdin)
 STDIN_BUFFER = dpram_addr($000)
-STDIN_READ = dpram_addr($100)
-STDIN_WRITE = dpram_addr($101)
-STDIN_LOCK = dpram_addr($102)
+STDIN_READ_LOCK = dpram_addr($100)
+STDIN_READ = dpram_addr($101)
+STDIN_WRITE_LOCK = dpram_addr($102)
+STDIN_WRITE = dpram_addr($103)
 	;; "M" buffer - "stdout" (audio cpu moves data from: stdout -> duart transmit buffer B)
 STDOUT_BUFFER = dpram_addr($200)
-STDOUT_READ = dpram_addr($300)
-STDOUT_WRITE = dpram_addr($301)
-STDOUT_LOCK = dpram_addr($302)
+STDOUT_READ_LOCK = dpram_addr($200)
+STDOUT_READ = dpram_addr($201)
+STDOUT_WRITE_LOCK = dpram_addr($202)
+STDOUT_WRITE = dpram_addr($203)
 	;; note that both cpus can read and write to either buffer.
+	
+	;; important! the buffers must have an address pattern like:
+	;;  <etc>n0aaaaaaaa] (main cpu)
+	;; <etc>n0aaaaaaaa0] (audio cpu)
+	;; i.e. put a gap between them of the same size as the buffer
 	
 	;; protocol to avoid race conditions:
 	;; begin atomic operation:
@@ -83,24 +90,40 @@ shared_end_operation MACRO buffer, read, write, lock
 	ENDM
 	
 stdin_begin:
-	shared_begin_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_LOCK
+	shared_begin_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_READ_LOCK
 	rts
 	
 stdin_end:	
-	shared_end_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_LOCK
+	shared_end_operation STDIN_BUFFER, STDIN_READ, STDIN_WRITE, STDIN_READ_LOCK
 	rts
 	
 stdout_begin:	
-	shared_begin_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_LOCK
+	shared_begin_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_READ_LOCK
 	rts
 	
 stdout_end:	
-	shared_end_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_LOCK
+	shared_end_operation STDOUT_BUFFER, STDOUT_READ, STDOUT_WRITE, STDOUT_READ_LOCK
 	rts
 	
 shared_check_remaining:	
 	cmpa.l A1, A0
 	rts
+	
+	;; new protocol:
+	;; <buffer>_begin_read (locks for read, sets A0)
+	;; <buffer>_begin_write (locks for write, sets A0)
+	;; <buffer>_end_read (writes A0, unlocks for read)
+	;; <buffer>_end_write (writes A0, unlocks for write)
+	;; shared_pop / shared_push
+	;; shared_increment (the usual)
+shared_push2:	
+	move.b D0, (A1, D7*2)
+	addq.b 1, D7
+	rts
+	
+
+	;; tbh it's probably not worth using address registers for this
+	;; or maybe use (A1, D7) or something. ah but then that wastes e.g. D6,D7,A1 instead of D7,A1,A0
 	
 shared_increment_read:
 	move.l A0, D7
@@ -130,14 +153,14 @@ shared_pop:
 	ELSE
 	;; only one cpu should do this!
 shared_init:	
-	st.b STDIN_LOCK
+	st.b STDIN_READ_LOCK
 	clr.b STDIN_READ
 	clr.b STDIN_WRITE
-	sf.b STDIN_LOCK
-	st.b STDOUT_LOCK
+	sf.b STDIN_READ_LOCK
+	st.b STDOUT_READ_LOCK
 	clr.b STDOUT_READ
 	clr.b STDOUT_WRITE
-	sf.b STDOUT_LOCK
+	sf.b STDOUT_READ_LOCK
 	rts
 	ENDIF
 	
