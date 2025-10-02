@@ -187,7 +187,7 @@ load_rel_b MACRO data, register
 	
 	;; in: D0
 	;; out: D0, flags
-hex_char_to_ascii:	
+hex_char_from_ascii:	
 	load_rel_b .HEX_TABLE, D0
 	rts
 .HEX_TABLE:
@@ -275,7 +275,7 @@ ps_default:
 	clr.l parser_acc
 	pt_eat ps_read_hex
 .command_t:							  ;set target  todo: currently this must be followed by a newline otherwise it is undefined which cpu executes the next commands
-	move.b parser_acc, COMMAND_RECIEVER ;todo: domain check on this, otherwise we're locked out lol
+	move.b parser_acc+3, COMMAND_RECIEVER ;todo: domain check on this, otherwise we're locked out lol
 	bra parser_finish
 .command_i:							  ;identify
 	lea .msg, A2
@@ -342,6 +342,53 @@ ps_default:
 .command_a:							  ;set addr
 	move.l parser_acc, parser_addr
 	clr.l parser_acc
+	move.l parser_addr, D1
+	
+	lea STDOUT_0, A1
+	jsr buffer_begin_write
+	move.b #'a', D0
+	jsr buffer_push
+	
+	clr.l D0
+	rol.l #8, D1
+	move.b D1, D0
+	
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+	
+	clr.l D0
+	rol.l #8, D1
+	move.b D1, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+	clr.l D0
+	rol.l #8, D1
+	move.b D1, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+	clr.l D0
+	rol.l #8, D1
+	move.b D1, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+
+	move.w #"\n", D0
+	jsr buffer_push
+
+	jsr buffer_end_write
+	
 	bra parser_finish
 .readmsg:
 	dc.b "read:", 0
@@ -352,15 +399,16 @@ ps_default:
 	dc.b "main cpu\n\0"
 	ENDIF
 	
-ps_read_hex:	
-	move.w D5, D0
-	bsr hex_char_to_ascii
+ps_read_hex:
+	clr.l D0
+	move.b D5, D0
+	bsr hex_char_from_ascii
 	bmi ps_default
 	move.l parser_acc, D2
 	lsl.l #4, D2
 	add.b D0, D2
 	move.l D2, parser_acc
-	bra parser_finish
+	rts								  ;parser eat + cont in state
 
 shared_do_commands:
 	cmp.b #CPU_ID, COMMAND_RECIEVER
