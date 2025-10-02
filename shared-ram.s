@@ -221,11 +221,13 @@ parser_state = parser_variables+4*0
 parser_acc = parser_variables+4*2 ;eventually this is gonna have to be a stack tbh
 parser_acc_len = parser_variables+4*3
 parser_acc_after = parser_variables+4*1
+parser_data_size = parser_variables+4*4
 	
 parser_reset:
 	;; todo
 	move.l #ps_default, parser_state
 	clr.l parser_acc
+	clr.b parser_data_size
 	rts
 
 	;; parser function terminators
@@ -255,6 +257,9 @@ ps_default:
 	cmp.b #'i', D5
 	beq .command_i
 	
+	cmp.b #'s', D5
+	beq .command_s
+	
 	cmp.b #'r', D5
 	beq .command_r
 
@@ -275,13 +280,15 @@ ps_default:
 .command_r:
 	move.l parser_acc, A0
 	clr.l D0
+	
+	cmp.b #2, parser_data_size
+	beq .word
+
 	move.b (A0)+, D0
 	move.l A0, parser_acc
 	
 	lea STDOUT_0, A1
 	jsr buffer_begin_write
-	lea .readmsg, A0
-	jsr buffer_push_string
 	bsr Byte_to_ascii_hex
 	swap D0
 	jsr buffer_push
@@ -292,6 +299,40 @@ ps_default:
 	
 	jsr buffer_end_write
 	
+	bra parser_finish
+.word:
+	move.w (A0)+, D0
+	move.l A0, parser_acc
+	move.w D0, D1
+	
+	lea STDOUT_0, A1
+	jsr buffer_begin_write
+	
+	lsr.w #8, D0
+	andi.l #$FF, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+	
+	move.w D1, D0
+	andi.l #$FF, D0
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+	
+	move.b #"\n", D0
+	jsr buffer_push
+	
+	jsr buffer_end_write
+	
+	bra parser_finish
+
+.command_s:							  ;data size
+	move.b parser_acc+3, parser_data_size ;todo: bounds check!
 	bra parser_finish
 .readmsg:
 	dc.b "read:", 0
