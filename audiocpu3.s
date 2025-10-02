@@ -103,7 +103,7 @@ entry:
 	jmp spin
 
 test_input:	
-	dc.b "i$1ti\n", 0
+	dc.b "i$0t\ni\ni$0rrrr\n", 0
 
 user_0:	
 	movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)
@@ -163,29 +163,7 @@ b_rx_ready:
 	jsr buffer_push
 	jsr buffer_end_write
 	rts
-	
-	;; D0 -> D0
-	;; convert a byte into 2 ascii hex digits (unpacked)
-Byte_to_ascii_hex:	
-	;; [0000 0000 0000 0000 0000 0000 hhhh llll]
-	ror.l #4, D0
-	;; [llll 0000 0000 0000 0000 0000 0000 hhhh]
-	;; work on the upper half
-	load_rel_b .digits, D0
-	;; [llll 0000 0000 0000 ???? ???? HHHH HHHH]
-	;; now:
-	swap D0
-	;; [???? ???? HHHH HHHH llll 0000 0000 0000]
-	rol.w #4, D0
-	;; [???? ???? HHHH HHHH 0000 0000 0000 llll]
-	load_rel_b .digits, D0
-	;; [???? ???? HHHH HHHH ???? ???? LLLL LLLL]
-	rts
-	;; note in this case the garbage bits will be zeros, because the data is located
-	;; _after_ the code, and fewer than 256 bytes away
-.digits:
-	dc.b "0123456789ABCDEFG"
-	
+		
 
 
 setup_duart:

@@ -32,7 +32,7 @@ STDOUT_0 = dpram_addr($200)
 	;; i.e. put a gap between them of the same size as the buffer
 	
 	;; 0 = main cpu, 1 = audio cpu
-COMMAND_RECIEVER = dpram_addr($300)
+COMMAND_RECIEVER = dpram_addr($180)
 
 	;; protocol to avoid race conditions:
 	;; begin atomic operation:
@@ -191,6 +191,28 @@ hex_char_to_ascii:
 .HEX_TABLE:
 	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
 	ALIGN 2
+
+	;; D0 -> D0
+	;; convert a byte into 2 ascii hex digits (unpacked)
+Byte_to_ascii_hex:	
+	;; [0000 0000 0000 0000 0000 0000 hhhh llll]
+	ror.l #4, D0
+	;; [llll 0000 0000 0000 0000 0000 0000 hhhh]
+	;; work on the upper half
+	load_rel_b .digits, D0
+	;; [llll 0000 0000 0000 ???? ???? HHHH HHHH]
+	;; now:
+	swap D0
+	;; [???? ???? HHHH HHHH llll 0000 0000 0000]
+	rol.w #4, D0
+	;; [???? ???? HHHH HHHH 0000 0000 0000 llll]
+	load_rel_b .digits, D0
+	;; [???? ???? HHHH HHHH ???? ???? LLLL LLLL]
+	rts
+	;; note in this case the garbage bits will be zeros, because the data is located
+	;; _after_ the code, and fewer than 256 bytes away
+.digits:
+	dc.b "0123456789ABCDEFG"
 	
 	;; parser state variables
 parser_state = parser_variables+4*0
@@ -230,6 +252,9 @@ ps_default:
 	
 	cmp.b #'i', D5
 	beq .command_i
+	
+	cmp.b #'r', D5
+	beq .command_r
 
 .unknown:							  ;nop
 	bra parser_finish
@@ -238,13 +263,36 @@ ps_default:
 .dollar:								  ;set acc
 	clr.l parser_acc
 	pt_eat ps_read_hex
-.command_t:							  ;set target
+.command_t:							  ;set target  todo: currently this must be followed by a newline otherwise it is undefined which cpu executes the next commands
 	move.b parser_acc, COMMAND_RECIEVER ;todo: domain check on this, otherwise we're locked out lol
 	bra parser_finish
 .command_i:							  ;identify
 	lea .msg, A2
 	jsr puts
 	bra parser_finish
+.command_r:
+	move.l parser_acc, A0
+	clr.l D0
+	move.b (A0)+, D0
+	move.l A0, parser_acc
+	
+	lea STDOUT_0, A1
+	jsr buffer_begin_write
+	lea .readmsg, A0
+	jsr buffer_push_string
+	bsr Byte_to_ascii_hex
+	swap D0
+	jsr buffer_push
+	swap D0
+	jsr buffer_push
+	move.b #"\n", D0
+	jsr buffer_push
+	
+	jsr buffer_end_write
+	
+	bra parser_finish
+.readmsg:
+	dc.b "read:", 0
 .msg:
 	IFDEF IS_AUDIO
 	dc.b "audio cpu\n\0"
