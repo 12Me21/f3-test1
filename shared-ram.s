@@ -125,9 +125,11 @@ buffer_increment_write:
 	
 	;; A0: input. pushes nul-terminated string
 _buffer_push_string_loop
-	bsr buffer_push
+	move.b (A0)+, (A1, D7)
+	addq.w #SHARED_ADDR_STRIDE, D7
+	andi.w #SHARED_ADDR_MASK, D7
 buffer_push_string:
-	move.b (A0)+, D0
+	tst.b (A0)
 	bne _buffer_push_string_loop
 	rts
 	

@@ -388,9 +388,9 @@ setup_lineram:
 	jsr latch_to_addr
 	
 	;link A6, #0
-	push.l A3
-	push.l D3
-	printf4 2, "lineram write to: %x %x\n"
+	;push.l A3
+	;push.l D3
+	;printf4 2, "lineram write to: %x %x\n"
 	;unlk A6 ; what if we did this or something instead of the manual drop?
 	
 	bsr write_lineram_block
