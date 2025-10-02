@@ -222,6 +222,7 @@ parser_acc = parser_variables+4*2 ;eventually this is gonna have to be a stack t
 parser_acc_len = parser_variables+4*3
 parser_acc_after = parser_variables+4*1
 parser_data_size = parser_variables+4*4
+parser_addr = parser_variables+4*5
 	
 parser_reset:
 	;; todo
@@ -263,6 +264,9 @@ ps_default:
 	cmp.b #'r', D5
 	beq .command_r
 
+	cmp.b #'a', D5
+	beq .command_a
+
 .unknown:							  ;nop
 	bra parser_finish
 .command_newline:					  ;nop
@@ -278,14 +282,14 @@ ps_default:
 	jsr puts
 	bra parser_finish
 .command_r:
-	move.l parser_acc, A0
+	move.l parser_addr, A0
 	clr.l D0
 	
 	cmp.b #2, parser_data_size
 	beq .word
 
 	move.b (A0)+, D0
-	move.l A0, parser_acc
+	move.l A0, parser_addr
 	
 	lea STDOUT_0, A1
 	jsr buffer_begin_write
@@ -302,7 +306,7 @@ ps_default:
 	bra parser_finish
 .word:
 	move.w (A0)+, D0
-	move.l A0, parser_acc
+	move.l A0, parser_addr
 	move.w D0, D1
 	
 	lea STDOUT_0, A1
@@ -333,6 +337,9 @@ ps_default:
 
 .command_s:							  ;data size
 	move.b parser_acc+3, parser_data_size ;todo: bounds check!
+	bra parser_finish
+.command_a:							  ;set addr
+	move.l parser_acc, parser_addr
 	bra parser_finish
 .readmsg:
 	dc.b "read:", 0
