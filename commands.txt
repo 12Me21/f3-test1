@@ -1,0 +1,93 @@
+command syntax:
+requirements:
+- send same commands to main or audio cpu
+- relatively easy to recover from parser misalignments
+
+lets use a line-based format
+also, stack machines are nice for parsing
+so e.g.
+
+$C00000 $300 r
+
+main state:
+- dollar sign: state=read_hex
+- 0-9: state=read_dec
+- space: nop
+- newline: reset (perhaps)
+- letter: command
+
+
+ok actually wait, what are our real requirements here?
+
+- read in and execute code (this is useful as a fallback for if we want to do something special. e.g. reading from other address spaces)
+ - can be composed from: [recieve data and write to address], and [call function at address]
+- put data in memory
+ - [recieve data and write to address]
+- read data from memory (e.g. performing a test read)
+ - [dump data at address]
+
+also. remember that our bottleneck is the serial port. how fast is that?
+62500 baud, *8/10, is 50000 bits per second or 6250 bytes per second, thus to fill all of ram (128K) would take ~21 seconds
+or e.g. our current program is like 12K in size so that would just be 2 seconds, perfectly managable.
+(also really i havent checked if that's the true bottleneck here)
+oh also worth considering is that we have to contend with the 256-byte buffer in shared ram. sending commands longer than that can cause issues, so perhaps let's avoid this.
+oh and also, we should consider like, how often the main cpu is actually checking its buffer. currently that's 1 time per frame which would limit us to at most 15360 bytes per frame which is not the bottleneck.
+alright...
+
+anyway so, for now i'm going to keep all data as ascii hex rather than raw bytes because it makes it all a lot safer and more convenient.
+
+so, commands we need
+- FILL(address,length,data)
+- DUMP(address,length) -> data
+- CALL(address)
+now, because the buffer is only 256 bytes, we probably shouldn't send more than that at once, so let's settle for a length of 64 as maximum
+
+fill:
+wAAAAAALLDD...
+rAAAAAALL
+cAAAAAA
+
+ok problem, how do both cpus read stdin to see if the command is for them?
+one option would be for the audio cpu to parse directly off the DUART and only pass bytes on to the main cpu IF they are not audio cpu commands
+but that's kinda awkward...
+instead i guess i'll have a buffer peek mode where you can check the top character to see if it's for you.
+and if it is, you process the command until the next newline, otherwise you ignore until the next newline (tho of course you still have to issue a peek on each character in order to see when that happens)
+nnnnn im not sure about all this..
+like for example, let's say we send the command
+
+"mc123456" (main cpu call $123456)
+
+and let's say the buffer contains "mc1" when a cpu starts to read it
+first the main cpu, in the ps_start_of_line state, will peek one character, see an 'm', and go into ps_my_command. then it will begin a read, and consume the 'm'. then in ps_my_command it will read the 'c', go into ps_read_hex or whatever, etc.
+
+meanwhile, the audio cpu,  uh oh, it didn't get to see the first character because it got eaten.  ah.
+
+alright so instead what we would do is, well... ghh
+
+>{oh i guess what i could do is
+have a flag for which cpu should be currently processing commands, and then just have a command that tells the current cpu to relinquish control to the other cpu
+(or rather, 2 commands, one for "give control to audio cpu" and one "give control to main cpu", which only have an effect if that isn't the current control status)
+ok yeah that's much nicer
+and also means that every single command doesn't have to have a flag for which cpu it applies to, reducing the number of bytes that have to be sent}
+
+yeahh
+
+ok so commands
+- read
+- write
+- execute
+- set target
+
+oh we also want to be able to define sizes
+specifically word/byte (long probably isnt useful)
+
+also like, we're gonna start running into full/empty buffer issues, so what are we gonna do about that?
+i suppose like, we wanna have a trap that's like  ok save all the current state and then come back when the buffer isn't empty anymore.
+but like ugh thats complex  we need a whole task system for that.
+
+anyway ok what if every command has a single argument. 
+e.g. we have "set pointer", then "read word and increment pointer", "read byte and increment", etc.
+
+ahaha we're back to the dang stack machine.
+but alright yea sure.
+

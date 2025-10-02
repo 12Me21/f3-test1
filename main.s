@@ -31,7 +31,8 @@ rising_btn = $400184
 edit = $400200
 edit_addr = $400204
 das = $400300
-
+	
+parser_variables = $400500
 parser_state = $400500
 parser_next = parser_state+4
 parser_acc = parser_next+4
@@ -332,76 +333,6 @@ printf:
 	movem.l	(SP)+, A2/A1/A0/D7/D1/D0
 	unlk A6
 	rtd #$4
-	
-
-status_bar:
-	;; move.l (cursor), D0
-	;; jsr log_newline
-	;; move.l D0, A2
-	;; jsr log_newline
-	;; move.l A2, A1
-	
-	;; move.l (rising_btn-2),-(SP)
-	
-;	moveq.l #0, D0
-;	move.w $4A000A, D0
-										  ;	ror.w #8, D0
-	;; move.l edit_addr, A0
-	;; move.l edit-2,-(SP)
-	;; move.l A0,-(SP)
-	;; move.l SP,-(SP)
-	;; move.l (vblank_pc),-(SP)
-	;; move.l (counter1),-(SP)
-	;; pea .msg
-	;; move.w #12, -(SP)
-	;; move.l A1, -(SP)
-	;; jsr printf
-	;; drop 4*6
-	rts
-.msg:
-	dc.b "f%d pc%06X sp%06X\nedit:%06X[%d] btn:%2X\0"
-	align 2
-	
-lr_colscroll	FUNCTION pf,$624000 + $200*(pf)
-lr_clipdef	FUNCTION cp,$625000 + $200*(cp)
-
-lr_sp_prio	= $627600
-lr_scale	FUNCTION pf,$628000 + $200*(pf)
-lr_pal_add	FUNCTION pf,$629000 + $200*(pf)
-lr_rowscroll	FUNCTION pf,$62a000 + $200*(pf)
-lr_pf_prio	FUNCTION pf,$62b000 + $200*(pf)
-
-
-FILL_W	MACRO dest,len,val
-		lea	dest,A0
-		move.w	len,D0
-.fill_loop:
-		move.w	val,(A0)+
-		dbf	D0,.fill_loop
-		ENDM
-
-FILL_L	MACRO dest,len,val
-		lea	dest,A0
-		move.w	len,D0
-.fill_loop:
-		move.l	val,(A0)+
-		dbf	D0,.fill_loop
-		ENDM
-
-;;; fill dest1 with val1 and dest2 with val2 for len [long]s
-FILL_L2	MACRO dest1,dest2,len,val1,val2
-		lea	dest1,A0
-		lea	dest2,A1
-		move.w	len,D0
-.fill_loop:
-		move.l	val1,(A0)+
-		move.l	val2,(A1)+
-		dbf	D0,.fill_loop
-		ENDM
-	;; [pppp pppp aaaa mmmm]
-	;; p - address
-	;; a - latch alternate
-	;; m - latch normal
 	
 setup_scroll:	
 	lea control_defaults, A1
@@ -734,21 +665,6 @@ ps_default:
 	
 	rts
 	
-load_rel_b MACRO data, register
-	addi.w #(data-(.testz+2)), register
-.testz:
-	move.b (PC, register), register
-	ENDM
-	
-	;; in: D0
-	;; out: D0, flags
-hex_char_to_ascii:	
-	load_rel_b .HEX_TABLE, D0
-	rts
-.HEX_TABLE:	
-	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
-	Align 2
-
 ps_address:	
 	move.w D5, D0
 	bsr hex_char_to_ascii

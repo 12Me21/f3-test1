@@ -12,6 +12,7 @@ OTIS_0 = $200000
 DPRAM_0 = $140000
 	
 ESP_HALT = $26003F
+parser_variables = $1500
 parser_state = $1500
 parser_next = parser_state+4 	  ;eventually this is gonna have to be a stack tbh
 parser_acc = parser_next+4

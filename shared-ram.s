@@ -29,6 +29,9 @@ STDOUT_0 = dpram_addr($200)
 	;; <etc>n0aaaaaaaa0] (audio cpu)
 	;; i.e. put a gap between them of the same size as the buffer
 	
+	;; 0 = main cpu, 1 = audio cpu
+COMMAND_RECIEVER = dpram_addr($300)
+
 	;; protocol to avoid race conditions:
 	;; begin atomic operation:
 	;; read the flag and set it (atomically)
@@ -82,12 +85,14 @@ store_spin MACRO register, location
 	;; A1: pointer to buffer struct
 buffer_begin_read:
 	atomic_begin_sync (A1, STREAM_READ_LOCK)
-	load_spin (A1, STREAM_READ), D6
-	load_spin (A1, STREAM_WRITE), D7
-	rts
+	bra buffer_begin_peek
 	
 buffer_begin_write:
 	atomic_begin_sync (A1, STREAM_WRITE_LOCK)
+	bra buffer_begin_peek
+	
+	;; has no end_peek, because we don't touch anything
+buffer_begin_peek:
 	load_spin (A1, STREAM_READ), D6
 	load_spin (A1, STREAM_WRITE), D7
 	rts
@@ -99,7 +104,7 @@ buffer_end_read:
 	rts
 	
 buffer_end_write:
-	store_spin D6, (A1, STREAM_READ)
+	Store_spin D6, (A1, STREAM_READ)
 	store_spin D7, (A1, STREAM_WRITE)
 	atomic_end (A1, STREAM_WRITE_LOCK)
 	rts
@@ -124,6 +129,12 @@ buffer_increment_read:
 	andi.w #SHARED_ADDR_MASK, D6
 	rts
 	
+	;; note this does not require locking, but does not
+buffer_begin_peek:
+	load_spin (A1, STREAM_READ), D6
+	load_spin (A1, STREAM_WRITE), D7
+	rts
+	
 	IFDEF AUDIO
 	ELSE
 	;; only one cpu should do this!
@@ -135,6 +146,7 @@ buffer_init:
 	rts
 	
 setup_shared:
+	st.b COMMAND_RECIEVER 		  ; command starts on audio cpu (because it has duart) but you should begin each session by setting it explicitl
 	lea STDIN_0, A1
 	bsr buffer_init
 	lea STDOUT_0, A1
@@ -144,3 +156,67 @@ setup_shared:
 	
 	;; todo:
 	;;disable interrupts?
+	
+
+	;; misc shared stuff
+	
+	;; load from a nearby table of bytes (most useful for 68000)
+	
+load_rel_b MACRO data, register
+	addi.w #(data-(.testz+2)), register
+.testz:
+	move.b (PC, register), register
+	ENDM
+	
+	;; in: D0
+	;; out: D0, flags
+hex_char_to_ascii:	
+	load_rel_b .HEX_TABLE, D0
+	rts
+.HEX_TABLE:
+	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
+	ALIGN 2
+	
+	;; parser state variables
+parser_state = parser_variables+4*0
+parser_acc = parser_variables+4*2
+parser_acc_len = parser_variables+4*3
+parser_acc_after = parser_variables+4*1
+	
+parser_eat_next MACRO state
+	lea state, parser_state
+
+	;; these all take a character in D5
+ps_start_of_line:	
+	cmp.b #'t', D5
+	beq .command_t
+	cmp.b #'r', D5
+	beq .command_r
+	cmp.b #'w', D5
+	beq .command_w
+	cmp.b #'e', D5
+	beq .command_e
+	cmp.b #' ', D5
+	beq .valid
+	parser_eat_next ps_error
+	rts
+.valid:
+	rts
+.command_t:
+	moveq.w #1, parser_acc_len
+	parser_eat_next ps_read_hex
+	bra .valid
+.command_r:
+	moveq.w #1, parser_acc_len
+	parser_eat_next ps_read_hex
+	bra .valid
+.command_w:
+	parser_eat_next ps_read_hex
+	bra .valid
+.command_e:
+	parser_eat_next ps_read_hex
+	bra .valid
+	
+	
+ps_error:	
+	
