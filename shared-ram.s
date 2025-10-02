@@ -281,7 +281,7 @@ ps_default:
 	lea .msg, A2
 	jsr puts
 	bra parser_finish
-.command_r:
+.command_r:							  ;read. todo: implement the read sizes better, and length control
 	move.l parser_addr, A0
 	clr.l D0
 	
@@ -293,7 +293,7 @@ ps_default:
 	
 	lea STDOUT_0, A1
 	jsr buffer_begin_write
-	bsr Byte_to_ascii_hex
+	bsr Byte_to_ascii_hex		  ;so messy...
 	swap D0
 	jsr buffer_push
 	swap D0
@@ -337,9 +337,11 @@ ps_default:
 
 .command_s:							  ;data size
 	move.b parser_acc+3, parser_data_size ;todo: bounds check!
+	clr.l parser_acc
 	bra parser_finish
 .command_a:							  ;set addr
 	move.l parser_acc, parser_addr
+	clr.l parser_acc
 	bra parser_finish
 .readmsg:
 	dc.b "read:", 0

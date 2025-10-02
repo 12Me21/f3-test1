@@ -91,3 +91,16 @@ e.g. we have "set pointer", then "read word and increment pointer", "read byte a
 ahaha we're back to the dang stack machine.
 but alright yea sure.
 
+anyway so instead of a stack machine i made it just have an accumulator
+i think this should be cleared after every command, also.
+anyway you can do like
+$2s ;set size to 2 bytes
+$0a ;set address to 0
+r ; read a word (note accumulator is 0, the default)
+$10r ; read 10 words
+$0a $2s $4r $4s $2r ; at address 0, read 4 words then 2 longs
+
+i think the `i` command should print more info about the current state, also.
+
+
+and we really need to solve the issue of what to do when the buffer is full...
