@@ -551,12 +551,15 @@ setup_timer:
 	
 setup_audio_shared:	
 	clr.w SOUND_RESET_ASSERT
+
 	lea DPRAM_0, A1
 	move.w #($200-1), D1
 .loop:
 	clr.l (A1)+
 	dbf D1, .loop
+	
 	jsr	setup_shared
+
 	clr.w SOUND_RESET_CLEAR
 	rts
 	
@@ -564,6 +567,7 @@ _entry:
 	disable_interrupts
 	lea (RAM_BASE).l, A5
 	nop
+	jsr parser_reset
 	jsr setup_audio_shared
 	pea s_WAIT_A_MOMENT
 	jsr printf
@@ -588,8 +592,6 @@ _entry:
 	jsr	load_system_palettes
 	
 	jsr	setup_tiles
-	
-	move.l #ps_default, parser_state
 	
 	bra spin
 	

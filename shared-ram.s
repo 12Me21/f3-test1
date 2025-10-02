@@ -123,6 +123,14 @@ buffer_increment_write:
 	andi.w #SHARED_ADDR_MASK, D7
 	rts
 	
+	;; A0: input. pushes nul-terminated string
+_buffer_push_string_loop
+	bsr buffer_push
+buffer_push_string:
+	move.b (A0)+, D0
+	bne _buffer_push_string_loop
+	rts
+	
 	;; D0: output
 buffer_pop:
 	move.b (A1, D6), D0
@@ -134,6 +142,8 @@ buffer_increment_read:
 buffer_peek:
 	move.b (A1, D6), D0
 	rts
+
+	;; todo: command to just check if buffer has anything in it
 	
 	IFDEF AUDIO
 	ELSE
@@ -218,7 +228,7 @@ ps_default:
 	cmp.b #'t', D5
 	beq .command_t
 	
-	cmp.b #'A', D5
+	cmp.b #'i', D5
 	beq .command_i
 
 .unknown:							  ;nop
@@ -251,7 +261,7 @@ ps_read_hex:
 	add.b D0, D2
 	move.l D2, parser_acc
 	bra parser_finish
-	
+
 shared_do_commands:
 	cmp.b #CPU_ID, COMMAND_RECIEVER
 	bne .notme

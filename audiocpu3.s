@@ -2,6 +2,7 @@
 	SUPMODE ON
 	PADDING ON
 IS_AUDIO = 1
+OVERRIDE_STDIN = 1
 	ORG $0
 	PHASE $C00000
 
@@ -77,6 +78,7 @@ entry:
 	move.l (A1)+, (A0)+
 	dbf D1, .write_vectors
 	
+	jsr parser_reset
 	bsr setup_duart
 	bsr setup_otis
 	bsr setup_esp
@@ -89,9 +91,20 @@ entry:
 	swap D0
 	bsr putc
 	puts_imm "\n"
+
+	IFDEF OVERRIDE_STDIN
+	lea STDIN_0, A1
+	jsr buffer_begin_write
+	lea test_input, A0
+	jsr buffer_push_string
+	jsr buffer_end_write
+	ENDIF
 	
 	jmp spin
-	
+
+test_input:	
+	dc.b "i$1ti\n", 0
+
 user_0:	
 	movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)
 	clr.l D0
@@ -142,6 +155,9 @@ b_rx_ready:
 	clr.l D0
 	move.b (A4, DUART_RBB), D5
 	move.b D5, D0
+	IFDEF OVERRIDE_STDIN
+	rts
+	ENDIF
 	lea STDIN_0, A1
 	jsr buffer_begin_write
 	jsr buffer_push
@@ -170,78 +186,10 @@ Byte_to_ascii_hex:
 .digits:
 	dc.b "0123456789ABCDEFG"
 	
-ps_command_p:
-	move.l #ps_default, parser_state
-	
-	puts_imm "READ:"
-	
-	move.b #'@', D0
-	bsr putc
-	
-	clr.l D0
-	move.b parser_acc+1, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	bsr putc
-	swap D0
-	bsr putc
-	
-	clr.l D0
-	move.b parser_acc+2, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	bsr putc
-	swap D0
-	bsr putc
-
-	clr.l D0
-	move.b parser_acc+3, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	bsr putc
-	swap D0
-	bsr putc
-
-	move.b #'=', D0
-	bsr putc
-
-	move.l parser_acc, A0
-	clr.l D0
-	move.b (A0), D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	bsr putc
-	swap D0
-	bsr putc
-	
-	move.b #'\n', D0
-	bsr putc
-	
-	rts
-
-ps_command_w:
-	move.l #ps_default, parser_state
-	
-	move.b #'w', D0
-	bsr putc
-	
-	move.l parser_acc, D0
-	move.b D0, D1
-	lsr.l #8, D0
-	move.l D0, A0
-	move.b D1, (A0)
-	
-	move.b #'/', D0
-	bsr putc
-	move.b #'\n', D0
-	bsr putc
-	rts
-
 
 
 setup_duart:
 	move.l #user_0, VECTOR_USER_0
-	move.l #ps_default, parser_state
 	
 	lea DUART_0, A4
 	move.b #(VECTOR_USER_0/4), (A4, DUART_IVR) ; set interrupt vector number
@@ -330,5 +278,7 @@ timer_ready:
 	;bne b_tx_ready.inner
 .empy:
 	jsr buffer_end_read
+
+	jsr shared_do_commands
 	rts
 	
