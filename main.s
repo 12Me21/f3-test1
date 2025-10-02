@@ -33,10 +33,6 @@ edit_addr = $400204
 das = $400300
 	
 parser_variables = $400500
-parser_state = $400500
-parser_next = parser_state+4
-parser_acc = parser_next+4
-parser_acc_len = parser_acc+4
 
 disable_interrupts	macro
 	ori.w #$700, SR
@@ -613,131 +609,11 @@ loop:
 	jsr process_inputs
 .n1:
 	
-	;; jsr stdout_begin
-	;; push.l A1
-	;; push.l A0
-	;; jsr stdout_end
-	
-	;; printf4 2, "stdout %x/%x\n"
-	lea STDIN_0, A1
-	jsr buffer_begin_read
-	bra .read_start
-.read:
-	clr.l D0
-	jsr buffer_pop
-	;push.l parser_state
-	;push.l D0
-	;printf4 2, "got byte: %x in state %x\n"
-	move.l D0, D5
-	bsr got_byte
-.read_start
-	jsr buffer_check_remaining
-	bne .read
-	jsr buffer_end_read
-	
+	jsr shared_do_commands
 .ret:
 	rts
 
-	;; D0
-got_byte:	
-	movem.l	A1/D6/D7, -(SP)
-	jsr ([parser_state])
-	movem.l	(SP)+, A1/D6/D7
-	rts
-	
-ps_default:
-	cmp.b #'A', D5
-	bne .n1
-	move.l #ps_address, parser_state
-	move.l #ps_command_p, parser_next
-	move.w #6-1, parser_acc_len
-	clr.l parser_acc
-	rts
-.n1:
-	cmp.b #'w', D5
-	bne .n2
-	move.l #ps_address, parser_state
-	move.l #ps_command_w, parser_next
-	move.w #8-1, parser_acc_len
-	clr.l parser_acc
-	rts
-.n2:
-	
-	rts
-	
-ps_address:	
-	move.w D5, D0
-	bsr hex_char_to_ascii
-	bmi .fail
-	move.l parser_acc, D2
-	lsl.l #4, D2
-	;add.w parser_acc_len, D0
-	add.b D0, D2
-	move.l D2, parser_acc
-	subq.w #1, parser_acc_len
-	bmi .end
-	rts
-.end:
-	move.l parser_next, parser_state
-	rts
-.fail:
-	;; reset
-	clr.l D0
-	move.w parser_acc, D0
-	push.l D0
-	printf4 1, "bad addr. %x\n"
-	
-	move.l #ps_default, parser_state
-	jmp ([parser_state])
-	
-
-ps_command_p:
-	move.l #ps_default, parser_state
-	
-	move.l parser_acc, A0
-	clr.l D0
-	move.b (A0), D0
-	
-	push.l D0
-	push.l A0
-	push.l #.msg
-	jsr printf
-	drop 4*2
-	
-	rts
-.msg:
-	dc.b "READ:@%6X=%2X\n\0"
-	align 2
-
-ps_command_w:
-	move.l #ps_default, parser_state
-	move.l parser_acc, D0
-	push.l D0
-	printf4 1, "w%8X"
-	
-	move.b D0, D1
-	lsr.l #8, D0
-	move.l D0, A0
-	move.b D1, (A0)
-	printf4 0,"/\n"
-	rts
-
 	;; TODO: add a version that uses MOVES so we can test the different address spaces.
-
-puts:									  ; takes A2 (todo: just use stack params)
-	movem.l	A1/D0/D6/D7, -(SP)	
-	lea STDOUT_0, A1
-	jsr buffer_begin_write
-.loop:
-	move.b (A2)+, D0
-	beq .exit
-	jsr buffer_push
-	bra .loop
-.exit:
-	jsr buffer_end_write
-	;move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	movem.l	(SP)+, A1/D0/D6/D7
-	rts
 
 	;; let's arrange: 
 	;; up down left right b1 b2 b3 start
@@ -894,7 +770,6 @@ vblank:
 	movem.l	(SP)+, D0/D1/D2/D3/D4/D5/D6/D7/A0/A1/A2/A3/A4/A5/A6
 	
 	;jsr print_ex_stack
-	jsr status_bar
 	enable_interrupts
 	rte
 	

@@ -13,10 +13,6 @@ DPRAM_0 = $140000
 	
 ESP_HALT = $26003F
 parser_variables = $1500
-parser_state = $1500
-parser_next = parser_state+4 	  ;eventually this is gonna have to be a stack tbh
-parser_acc = parser_next+4
-parser_acc_len = parser_acc+4
 	
 VECTOR_USER_0 = $100
 
@@ -27,19 +23,6 @@ disable_interrupts	macro
 enable_interrupts	macro
 	andi.w #(~$700), SR
 	endm
-
-	;; this can't use .size notation because ATTRIBUTE can't be used in IF!
-	;; anyway this is for 68000 where we don't have as many fancy addressing modes
-	;; maybe there is a better way to do this but whatever
-	;; before: [uuuu uuuu uuuu uuuu iiii iiii iiii iiii] i = index
-	;; after:  [uuuu uuuu uuuu uuuu ???? ???? dddd dddd] d = data loaded from rom
-	;; corrupts the second lowest byte, but leaves the upper word untouched
-	;; note that the corrupted bits depend on the distance and direction to the data;
-load_rel_b MACRO data, register
-	addi.w #(data-(.testz+2)), register
-.testz:
-	move.b (PC, register), register
-	ENDM
 	
 
 	
@@ -163,71 +146,6 @@ b_rx_ready:
 	jsr buffer_begin_write
 	jsr buffer_push
 	jsr buffer_end_write
-	rts								  ;nevermind
-parser_retry:
-	move.l parser_state, A0
-	jmp (A0)
-	rts
-	
-ps_default:
-	cmp.b #'A', D5
-	bne .n1
-	move.l #ps_address, parser_state
-	move.l #ps_command_p, parser_next
-	move.w #6-1, parser_acc_len
-	clr.l parser_acc
-	rts
-.n1:
-	cmp.b #'w', D5
-	bne .n2
-	move.l #ps_address, parser_state
-	move.l #ps_command_w, parser_next
-	move.w #8-1, parser_acc_len
-	clr.l parser_acc
-	rts
-.n2:
-	move.b #'~', D0
-	bsr putc
-	
-	rts
-	
-	;; in: D0
-	;; out: D0, flags
-hex_char_to_ascii:	
-	load_rel_b .HEX_TABLE, D0
-	rts
-.HEX_TABLE:	
-	dc.b [48]-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, [7]-1, 10, 11, 12, 13, 14, 15, [26]-1, 10, 11, 12, 13, 14, 15, [25]-1, [128]-1
-	Align 2
-	
-ps_address:	
-	move.w D5, D0
-	bsr hex_char_to_ascii
-	bmi .fail
-	move.l parser_acc, D2
-	lsl.l #4, D2
-	;add.w parser_acc_len, D0
-	add.b D0, D2
-	move.l D2, parser_acc
-	subq.w #1, parser_acc_len
-	bmi .end
-	rts
-.end:
-	move.l parser_next, parser_state
-	rts
-.fail:
-	;; reset
-	puts_imm "bad addr."
-	move.b parser_acc+3, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	bsr putc
-	swap D0
-	bsr putc
-	puts_imm "\n"
-	
-	move.l #ps_default, parser_state
-	bra parser_retry
 	rts
 	
 	;; D0 -> D0
@@ -414,29 +332,3 @@ timer_ready:
 	jsr buffer_end_read
 	rts
 	
-	;; takes D0
-putc:
-	movem.l	A1/D0/D6/D7, -(SP)
-	lea STDOUT_0, A1
-	jsr buffer_begin_read
-	jsr buffer_push
-	jsr buffer_end_read
-	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	movem.l	(SP)+, A1/D0/D6/D7
-	rts
-	
-	;; takes A2
-puts:
-	movem.l	A1/D0/D6/D7, -(SP)	
-	lea STDOUT_0, A1
-	jsr buffer_begin_read
-.loop:
-	move.b (A2)+, D0
-	beq .exit
-	jsr buffer_push
-	bra .loop
-.exit:
-	jsr buffer_end_read
-	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	movem.l	(SP)+, A1/D0/D6/D7
-	rts
