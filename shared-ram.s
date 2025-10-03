@@ -343,47 +343,16 @@ ps_default:
 	move.b (A0)+, D0
 	move.l A0, parser_addr
 	
-	lea STDOUT_0, A1
-	jsr buffer_begin_write
-	bsr Byte_to_ascii_hex		  ;so messy...
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-	move.b #"\n", D0
-	jsr buffer_push
-	
-	jsr buffer_end_write
+	push.l D0
+	printf4 1, "%02X\n"
 	
 	bra parser_finish
 .word:
 	move.w (A0)+, D0
 	move.l A0, parser_addr
-	move.w D0, D1
 	
-	lea STDOUT_0, A1
-	jsr buffer_begin_write
-	
-	lsr.w #8, D0
-	andi.l #$FF, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-	
-	move.w D1, D0
-	andi.l #$FF, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-	
-	move.b #"\n", D0
-	jsr buffer_push
-	
-	jsr buffer_end_write
+	push.l D0
+	printf4 1, "%04X\n"
 	
 	bra parser_finish
 
