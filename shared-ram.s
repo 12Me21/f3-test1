@@ -285,6 +285,7 @@ parser_acc_len = parser_variables+4*3
 parser_acc_after = parser_variables+4*1
 parser_data_size = parser_variables+4*4
 parser_addr = parser_variables+4*5
+parser_command = parser_variables+4*6
 	
 parser_reset:
 	;; todo
@@ -301,48 +302,51 @@ pt_eat MACRO next
 
 ;pt_noeat MACRO state
 ;	bra next
-parser_finish:
-	;lea (PC, ps_default-(parser_finish+2)), parser_state
-	pt_eat ps_default
-	rts
 
 	;; these all take a character in D5
 ps_default:	
 	cmp.b #'\n', D5
 	beq .command_newline
 	
-	cmp.b #'$', D5
-	beq .dollar
-	
-	cmp.b #'t', D5
-	beq .command_t
-	
-	cmp.b #'i', D5
-	beq .command_i
-	
-	cmp.b #'s', D5
-	beq .command_s
-	
-	cmp.b #'r', D5
-	beq .command_r
-
-	cmp.b #'a', D5
-	beq .command_a
-
-.unknown:							  ;nop
-	bra parser_finish
-.command_newline:					  ;nop
-	bra parser_finish
-.dollar:								  ;set acc
+	move.b D5, parser_command
 	clr.l parser_acc
-	pt_eat ps_read_hex
+	move.l #ps_read_hex, parser_state
+	rts
+.command_newline:
+	rts
+	
+ps_read_hex:
+	clr.l D0
+	move.b D5, D0
+	bsr hex_char_from_ascii
+	bmi hex_finish
+	move.l parser_acc, D2
+	lsl.l #4, D2
+	add.b D0, D2
+	move.l D2, parser_acc
+	rts								  ;parser eat + cont in state
+hex_finish:	
+	move.b parser_command, D0
+	cmp.b #'t', D0
+	beq .command_t
+	cmp.b #'i', D0
+	beq .command_i
+	cmp.b #'s', D0
+	beq .command_s
+	cmp.b #'r', D0
+	beq .command_r
+	cmp.b #'a', D0
+	beq .command_a
+.finish:
+	move.l #ps_default, parser_state
+	rts
 .command_t:							  ;set target  todo: currently this must be followed by a newline otherwise it is undefined which cpu executes the next commands
 	move.b parser_acc+3, COMMAND_RECIEVER ;todo: domain check on this, otherwise we're locked out lol
-	bra parser_finish
+	bra .finish
 .command_i:							  ;identify
 	lea .msg, A2
 	jsr puts
-	bra parser_finish
+	bra .finish
 .command_r:							  ;read. todo: implement the read sizes better, and length control
 	move.l parser_addr, A0
 	clr.l D0
@@ -358,7 +362,7 @@ ps_default:
 	push.l D0
 	printf4 1, "%02X\n"
 	
-	bra parser_finish
+	bra .finish
 .test:
 	dc.b "TEST123\0"
 .word:
@@ -368,7 +372,7 @@ ps_default:
 	push.l D0
 	printf4 1, "%04X\n"
 	
-	bra parser_finish
+	bra .finish
 .long:
 	move.l (A0)+, D0
 	move.l A0, parser_addr
@@ -376,19 +380,19 @@ ps_default:
 	push.l D0
 	printf4 1, "%08X\n"
 	
-	bra parser_finish
+	bra .finish
 
 .command_s:							  ;data size
 	move.b parser_acc+3, parser_data_size ;todo: bounds check!
 	clr.l parser_acc
-	bra parser_finish
+	bra .finish
 .command_a:							  ;set addr
 	move.l parser_acc, parser_addr
 	clr.l parser_acc
 	push.l parser_addr
 	printf4 1, "@ %06X\n"
 	
-	bra parser_finish
+	bra .finish
 .readmsg:
 	dc.b "read:", 0
 .msg:
@@ -397,17 +401,6 @@ ps_default:
 	ELSEIF
 	dc.b "main cpu\n\0"
 	ENDIF
-	
-ps_read_hex:
-	clr.l D0
-	move.b D5, D0
-	bsr hex_char_from_ascii
-	bmi ps_default
-	move.l parser_acc, D2
-	lsl.l #4, D2
-	add.b D0, D2
-	move.l D2, parser_acc
-	rts								  ;parser eat + cont in state
 
 shared_do_commands:
 	cmp.b #CPU_ID, COMMAND_RECIEVER
