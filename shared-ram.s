@@ -345,8 +345,8 @@ ps_default:
 	;move.l A0, parser_addr
 	
 	lea .test, A0
-	push.l #(int(1.0*(1<<15)))
-	printf4 1, "%Dtest\n"
+	push.l #(-1234)
+	printf4 1, "%-8.6.3itest\n"
 	
 	bra parser_finish
 .test:

@@ -9,7 +9,7 @@ flag 08: has .
 flag 10: add + prefix
 flag 20: add space prefix on positives
 flag 40: add 0x/0(/0b?) prefix
-flag 80: ?
+flag 80: short argument (h)
 flag 8000: has a second .
 
 flag 8000
@@ -19,6 +19,9 @@ where a is read into D4, b into D5, c into local_6
 flag 8000 says whether to use local_6
 flag 08 says whether to use D5
 
+
+
+flags (continue sequence)
 
 space - set flag $20
 # - set flag $40
@@ -36,11 +39,48 @@ space - set flag $20
  if flag 08 is unset, sets D4
  if flag 08 is set and flag 8000 is unset, sets D5
  if flag 08 is set and flag 8000 is set, sets local_6
+L - nop
+h - treat argument as short (even though they're all longs on the stack) also affects `n`
+l - nop
+
+
+
+
+specifiers (end of sequence)
 
 B - prints bcd, given a pointer to the BCD string. the third numeric argument (%..nB) is the number of digits to READ from memory. the other numeric arguments behave as normal.
 
-D - print fixed point (in decimal)
+D - fixed point (in decimal). does NOT respect `h` flag
  third numeric argument is the number of fractional bits (0-28, default 15)
  BUG: if fractional bits is 0 and the argument is -2147483648, 2147483648 is printed instead (without a sign, even if the + or space flags are set)
  (TODO: fix this by moving sprintf_minus to before sprintf_2^31 and then increasing the length of the copy by 1. this requires altering 4 references)
+ BUG: the space flag causes it to print a null after the space
 
+P - pointer, uppercase
+ fixed length of 8
+
+X - hex, uppercase. respects `h` flag
+
+b - binary. respects `h` flag
+
+c - character
+
+d/i - signed decimal. does NOT respect `h` flag
+ BUG: the space flag causes it to print a null after the space
+ TODO: fix this by just changing `72 02 43 fa 00 4e` and `72 02 43 fa fe b4` -> `72 01 ...`
+
+n - output number of characters printed to a pointer. respects `h` flag (uses move.w or move.l depending)
+
+o - octal. respects `h` flag
+
+p - pointer, lowercase
+
+s - string
+ if pointer is null, nothing is printed
+
+u - unsigned decimal. respects `h` flag
+ 
+x - hex, lowercase. respects `h` flag
+
+unless otherwise employed (%B and %D), the third numeric argument sets the maximum width of the numerical/string part (not affecting padding or prefixes), truncating the beginning if necessary.
+ e.g. "%8.6.3d" with -1234 prints "-000234 "
