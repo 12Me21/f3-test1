@@ -60,34 +60,43 @@ drop macro amt
 	ENDIF
 	endm
 
-	;; messes up D0, D1, A0, A1
+	
+	;; D0 - output, number of chars written
+	;; D1, A0, A1 - used
 	;ORG $5dde
 sprintf:
 	BINCLUDE "sprintf.bin"
 	rts
 	
+	;; no registers damaged
+	;; does not pop its parameters
+	;; stack arguments:
+	;; (SP-4).l pointer to format string
+	;; (SP-8).l first argument (etc.)
 printf:
 .format = 8
 .rest = .format+4
 .buffer = -$80
 	link.w A6, #.buffer
-	movem.l	A2/A1/A0/D7/D6/D1/D0, -(SP)
+	movem.l	A1/A0/D7/D6/D1/D0, -(SP)
 	pea	(.rest,A6)
 	move.l	(.format,A6), -(SP)
 	pea	(.buffer,A6)
 	jsr sprintf
 	drop 4*3
-	lea (.buffer,A6), A2
+	lea (.buffer,A6), A0
 	lea STDOUT_0, A1
 	jsr buffer_begin_write
+	move.l D0, D1
+	subq.l #1, D1
+	ble .exit
 .loop:
-	move.b (A2)+, D0
-	beq .exit
+	move.b (A0)+, D0
 	jsr buffer_push
-	bra .loop
+	dbf D1, .loop
 .exit:
 	jsr buffer_end_write
-	movem.l	(SP)+, A2/A1/A0/D7/D6/D1/D0
+	movem.l	(SP)+, A1/A0/D7/D6/D1/D0
 	unlk A6
 	rts
 	
@@ -341,16 +350,15 @@ ps_default:
 	cmp.b #2, parser_data_size
 	beq .word
 
-	;move.b (A0)+, D0
-	;move.l A0, parser_addr
+	move.b (A0)+, D0
+	move.l A0, parser_addr
 	
-	lea .test, A0
-	push.l #(-1234)
-	printf4 1, "%-8.6.3itest\n"
+	push.l D0
+	printf4 1, "%02X\n"
 	
 	bra parser_finish
 .test:
-	dc.b $12,$34,$56
+	dc.b "TEST123\0"
 .word:
 	move.w (A0)+, D0
 	move.l A0, parser_addr

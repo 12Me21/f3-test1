@@ -43,37 +43,39 @@ L - nop
 h - treat argument as short (even though they're all longs on the stack) also affects `n`
 l - nop
 
-
 
 
-specifiers (end of sequence)
+supported flags:
 
-B - prints bcd, given a pointer to the BCD string. the third numeric argument (%..nB) is the number of digits to READ from memory. the other numeric arguments behave as normal.
+0 - pad to width with zeros instead of spaces
+- - left align (pad right side instead of left)
++ - print + prefix on non-negative numbers
+space - print space prefix on non negative numbers
+ BUG: in %D and %d/%i, the space flag causes it to print a nul after the space
+ TODO: fix this by just changing `72 02 43 fa 00 4e` and `72 02 43 fa fe b4` -> `72 01 ...`
+# - print base prefix ("0X" on %P/%X, "0x" on %p/%x, "0" on %o. not supported by %b)
+h - short mode (not supported by all specifiers)
+L - does nothing
+l - does nothing
 
-D - fixed point (in decimal). does NOT respect `h` flag
- third numeric argument is the number of fractional bits (0-28, default 15)
- BUG: if fractional bits is 0 and the argument is -2147483648, 2147483648 is printed instead (without a sign, even if the + or space flags are set)
- (TODO: fix this by moving sprintf_minus to before sprintf_2^31 and then increasing the length of the copy by 1. this requires altering 4 references)
- BUG: the space flag causes it to print a null after the space
+this printf supports 3 numeric arguments: [width][.precision[.maxlength]]
+unless otherwise employed (%B and %D), the third numeric argument sets the maximum length of the numerical/string part (not affecting padding or prefixes).
+it behaves similarly to the .precision with %s, but truncates from the left instead of the right and affects all specifiers
+ e.g. "%8.6.3d" with -1234 prints "-000234 "
+ "%.2s" with "abcd" prints "ab", while "%.4.2s" prints "cd"
 
-P - pointer, uppercase
- fixed length of 8
-
-X - hex, uppercase. respects `h` flag
-
-b - binary. respects `h` flag
+supported specifiers:
 
 c - character
 
 d/i - signed decimal. does NOT respect `h` flag
- BUG: the space flag causes it to print a null after the space
- TODO: fix this by just changing `72 02 43 fa 00 4e` and `72 02 43 fa fe b4` -> `72 01 ...`
 
-n - output number of characters printed to a pointer. respects `h` flag (uses move.w or move.l depending)
+n - output the number of characters printed, to a pointer. respects `h` flag (uses move.w or move.l depending on that)
 
 o - octal. respects `h` flag
 
-p - pointer, lowercase
+p - pointer, lowercase. like %08x
+P - pointer, uppercase. like %08X
 
 s - string
  if pointer is null, nothing is printed
@@ -81,6 +83,17 @@ s - string
 u - unsigned decimal. respects `h` flag
  
 x - hex, lowercase. respects `h` flag
+X - hex, uppercase. respects `h` flag
 
-unless otherwise employed (%B and %D), the third numeric argument sets the maximum width of the numerical/string part (not affecting padding or prefixes), truncating the beginning if necessary.
- e.g. "%8.6.3d" with -1234 prints "-000234 "
+non-standard specifiers:
+
+B - prints binary coded decimal, as decimal, given a pointer to the BCD string.
+ the third numeric argument (%..nB) is the number of digits to READ from memory.
+ (this length can be odd, in which case the first digit (high nibble of the first byte) is skipped)
+
+D - prints fixed point, as decimal. does NOT respect `h` flag
+ third numeric argument is the number of fractional bits (0-28, default 15)
+ BUG: if fractional bits is 0 and the argument is -2147483648, 2147483648 is printed instead (without a sign, even if the + or space flags are set)
+ (TODO: fix this by moving sprintf_minus to before sprintf_2^31 and then increasing the length of the copy by 1. this requires altering 4 references)
+
+b - binary. respects `h` flag

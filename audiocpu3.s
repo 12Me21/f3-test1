@@ -57,17 +57,6 @@ exc:
 
 	Include "shared-ram.s"
 	
-	;; note uses like, A1, A0, D0
-puts_imm macro str
-	lea .string, A2
-	pea .next
-	bra puts
-.string:
-	dc.b str, "\0"
-	align 2
-.next:
-	endm
-	
 entry:
 	movea.l ROM_VECTORS_0, SP
 	
@@ -83,15 +72,8 @@ entry:
 	bsr setup_otis
 	bsr setup_esp
 	
-	puts_imm "Hi!"
-	move.w D2, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	bsr putc
-	swap D0
-	bsr putc
-	puts_imm "\n"
-
+	printf4 0, "\x1B[35mHi!\x1B[m\n"
+	
 	IFDEF OVERRIDE_STDIN
 	lea STDIN_0, A1
 	jsr buffer_begin_write
@@ -103,7 +85,7 @@ entry:
 	jmp spin
 
 test_input:	
-	dc.b "$0t\ni$1s$600002 a rrrrrrrr\n", 0
+	dc.b "$0 t\n i $2 s $600000 a rrrrrrrr\n", 0
 
 user_0:	
 	movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)
@@ -149,7 +131,7 @@ b_rx_ready:
 	and.b #$50, D1
 	beq.b .framing_and_overrun_ok
 	bsr setup_duart
-	puts_imm "Bad"
+	printf4 0, "Bad"
 	rts
 .framing_and_overrun_ok:
 	clr.l D0

@@ -664,8 +664,10 @@ buttons:
 	printf4 2, "\xFF\x02write[%6X] <- %02X\n"
 	rts
 .c:
-	lea s_WAIT_A_MOMENT, A2 
-	jsr puts
+	push.l #7
+	pea s_WAIT_A_MOMENT
+	jsr printf
+	drop 4+4*1
 	
 	lea 0, A0
 	movem.l (A0), D0/D1/D2
