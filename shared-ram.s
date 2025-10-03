@@ -50,6 +50,58 @@ nop2 MACRO
 	ENDIF
 	ENDM
 	
+push    macro   op
+        move.ATTRIBUTE op,-(sp)
+        endm
+
+drop macro amt
+	IF amt<>0
+	lea.l	(amt,SP),SP
+	ENDIF
+	endm
+
+	;; messes up D0, D1, A0, A1
+sprintf:
+	BINCLUDE "sprintf.bin"
+	rts
+	
+printf:
+.format = 8
+.rest = .format+4
+.buffer = -$80
+	link.w A6, #.buffer
+	movem.l	A2/A1/A0/D7/D6/D1/D0, -(SP)
+	pea	(.rest,A6)
+	move.l	(.format,A6), -(SP)
+	pea	(.buffer,A6)
+	jsr sprintf
+	drop 4*3
+	lea (.buffer,A6), A2
+	lea STDOUT_0, A1
+	jsr buffer_begin_write
+.loop:
+	move.b (A2)+, D0
+	beq .exit
+	jsr buffer_push
+	bra .loop
+.exit:
+	jsr buffer_end_write
+	movem.l	(SP)+, A2/A1/A0/D7/D6/D1/D0
+	unlk A6
+	rts
+	
+printf4 macro count, str
+	pea .string
+	pea .next
+	jmp printf
+.string:
+	dc.b str, "\0"
+	align 2
+.next:
+	drop count*4+4
+	endm
+
+	
 	;; only use this during init (to set the lock for the first time ever)!
 atomic_begin_FORCE MACRO lock
 	st.b lock
@@ -461,3 +513,4 @@ puts:									  ; takes A2 (todo: just use stack params)
 	;move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
 	movem.l	(SP)+, A1/D0/D6/D7
 	rts
+	
