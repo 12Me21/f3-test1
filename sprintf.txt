@@ -1,0 +1,41 @@
+sprintf implementation reused from land maker
+
+format support:
+
+flag 01: ?
+flag 02: pad with 0
+flag 04: left align
+flag 08: has .
+flag 10: add + prefix
+flag 20: pad with spaces
+flag 40: add 0x/0(/0b?) prefix
+flag 80: ?
+flag 8000: has a second .
+
+flag 8000
+
+i think this printf has a form like %a.b.c
+where a is read into D4, b into D5, c into local_6
+flag 8000 says whether to use local_6
+flag 08 says whether to use D5
+
+
+space - set flag $20
+# - set flag $40
+* - reads a signed short arg into either:
+ - D4 (if flag 08 unset) - toggles flag 04 if non-positive
+ - D5 (if flag 08 set and flag 8000 unset)
+ - local_6 (if flag 08 set and flag 8000 set)
+ also ensures the value is non-negative
++ - sets flag 10
+- - sets flag 04
+. - sets flag 08. if it wasn't already set, sets D5=0.
+ if it was already set, sets flag 8000, and sets local_6=0 if that wasn't already set
+0 - sets flag 02
+1-9 - reads a number from the format string
+ if flag 08 is unset, sets D4
+ if flag 08 is set and flag 8000 is unset, sets D5
+ if flag 08 is set and flag 8000 is set, sets local_6
+
+B - prints bcd, given a pointer to the BCD string. the third numeric argument (%..nB) is the number of digits to READ from memory. the other numeric arguments behave as normal.
+
