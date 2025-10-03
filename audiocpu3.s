@@ -103,7 +103,7 @@ entry:
 	jmp spin
 
 test_input:	
-	dc.b "$1t\ni$2s$600000 a rrrrrrrr\nrrrrrrrr\n", 0
+	dc.b "$0t\ni$1s$600002 a rrrrrrrr\n", 0
 
 user_0:	
 	movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)

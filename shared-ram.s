@@ -61,6 +61,7 @@ drop macro amt
 	endm
 
 	;; messes up D0, D1, A0, A1
+	;ORG $5dde
 sprintf:
 	BINCLUDE "sprintf.bin"
 	rts
@@ -340,13 +341,16 @@ ps_default:
 	cmp.b #2, parser_data_size
 	beq .word
 
-	move.b (A0)+, D0
-	move.l A0, parser_addr
+	;move.b (A0)+, D0
+	;move.l A0, parser_addr
 	
-	push.l D0
-	printf4 1, "%02X\n"
+	lea .test, A0
+	push.l #(int(1.0*(1<<15)))
+	printf4 1, "%Dtest\n"
 	
 	bra parser_finish
+.test:
+	dc.b $12,$34,$56
 .word:
 	move.w (A0)+, D0
 	move.l A0, parser_addr

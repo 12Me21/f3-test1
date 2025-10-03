@@ -7,7 +7,7 @@ flag 02: pad with 0
 flag 04: left align
 flag 08: has .
 flag 10: add + prefix
-flag 20: pad with spaces
+flag 20: add space prefix on positives
 flag 40: add 0x/0(/0b?) prefix
 flag 80: ?
 flag 8000: has a second .
@@ -38,4 +38,9 @@ space - set flag $20
  if flag 08 is set and flag 8000 is set, sets local_6
 
 B - prints bcd, given a pointer to the BCD string. the third numeric argument (%..nB) is the number of digits to READ from memory. the other numeric arguments behave as normal.
+
+D - print fixed point (in decimal)
+ third numeric argument is the number of fractional bits (0-28, default 15)
+ BUG: if fractional bits is 0 and the argument is -2147483648, 2147483648 is printed instead (without a sign, even if the + or space flags are set)
+ (TODO: fix this by moving sprintf_minus to before sprintf_2^31 and then increasing the length of the copy by 1. this requires altering 4 references)
 
