@@ -349,6 +349,8 @@ ps_default:
 	
 	cmp.b #2, parser_data_size
 	beq .word
+	cmp.b #4, parser_data_size
+	beq .long
 
 	move.b (A0)+, D0
 	move.l A0, parser_addr
@@ -367,6 +369,14 @@ ps_default:
 	printf4 1, "%04X\n"
 	
 	bra parser_finish
+.long:
+	move.l (A0)+, D0
+	move.l A0, parser_addr
+	
+	push.l D0
+	printf4 1, "%08X\n"
+	
+	bra parser_finish
 
 .command_s:							  ;data size
 	move.b parser_acc+3, parser_data_size ;todo: bounds check!
@@ -375,52 +385,8 @@ ps_default:
 .command_a:							  ;set addr
 	move.l parser_acc, parser_addr
 	clr.l parser_acc
-	move.l parser_addr, D1
-	
-	lea STDOUT_0, A1
-	jsr buffer_begin_write
-	move.b #'a', D0
-	jsr buffer_push
-	
-	clr.l D0
-	rol.l #8, D1
-	move.b D1, D0
-	
-	bsr Byte_to_ascii_hex
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-	
-	clr.l D0
-	rol.l #8, D1
-	move.b D1, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-	clr.l D0
-	rol.l #8, D1
-	move.b D1, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-	clr.l D0
-	rol.l #8, D1
-	move.b D1, D0
-	bsr Byte_to_ascii_hex
-	swap D0
-	jsr buffer_push
-	swap D0
-	jsr buffer_push
-
-	move.w #"\n", D0
-	jsr buffer_push
-
-	jsr buffer_end_write
+	push.l parser_addr
+	printf4 1, "@ %06X\n"
 	
 	bra parser_finish
 .readmsg:
