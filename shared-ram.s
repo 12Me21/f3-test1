@@ -127,20 +127,19 @@ atomic_begin_sync MACRO lock
 atomic_end MACRO lock
 	sf.b lock
 	ENDM
-	
-load_spin MACRO location, register
-	clr.w register
-	move.b location, register
+
+	;; because on the audio cpu, shared ram is located at every other address
+	;; and the 68000 doesn't have a (An, Dn*2) addressing mode
+adjust_buffer_index MACRO reg
 	IFDEF IS_AUDIO
-	asl.w #1, register
+	add.w reg, reg
 	ENDIF
 	ENDM
 	
-store_spin MACRO register, location
+unadjust_buffer_index MACRO reg
 	IFDEF IS_AUDIO
-	asr.w #1, register
+	lsr.w #1, reg
 	ENDIF
-	move.b register, location
 	ENDM
 
 	;; in: A1 - buffer struct
@@ -152,10 +151,11 @@ buffer_begin_read:
 	;; same as begin_read, but does not lock
 	;; ONLY use this for checking emptyness or peeking, do not call end_read
 buffer_peek_read:
-	load_spin (A1, STREAM_READ), D7
-	load_spin (A1, STREAM_WRITE), D6
-	sub.w D7, D6
-	andi.w #SHARED_ADDR_MASK, D6
+	clr.l D7
+	clr.l D6
+	move.b (A1, STREAM_READ), D7
+	move.b (A1, STREAM_WRITE), D6
+	sub.b D7, D6
 	rts
 	
 	;; in: A1 - buffer struct
@@ -167,83 +167,73 @@ buffer_begin_write:
 	;; same as begin_write, but does not lock
 	;; ONLY use this for checking fullness, do not write or call end_write
 buffer_peek_write:
-	load_spin (A1, STREAM_WRITE), D7
-	load_spin (A1, STREAM_READ), D6
-	sub.w D7, D6
-	subq.w #1, D6  ; subtract 1 so we never write to the final slot and break everything
-	andi.w #SHARED_ADDR_MASK, D6
+	clr.l D7
+	clr.l D6
+	move.b (A1, STREAM_WRITE), D7
+	move.b (A1, STREAM_READ), D6
+	sub.b D7, D6
+	subq.b #1, D6  ; subtract 1 so we never write to the final slot and break everything
 	rts
 	
 	;; in: A1 - buffer struct
 	;; in: D7w - read offset
 buffer_end_read:
-	store_spin D7, (A1, STREAM_READ)
+	move.b D7, (A1, STREAM_READ)
 	atomic_end (A1, STREAM_READ_LOCK)
 	rts
 	
 	;; in: A1 - buffer struct
 	;; in: D7w - write offset
 buffer_end_write:
-	store_spin D7, (A1, STREAM_WRITE)
+	move.b D7, (A1, STREAM_WRITE)
 	atomic_end (A1, STREAM_WRITE_LOCK)
 	rts
 	
 	;; in: D6w - number of REMAINING slots
 	;; out: ZF - set if buffer is empty (read) or full (write)
 buffer_check_remaining:	
-	tst.w D6
+	tst.b D6
 	rts
+	
+_buffer_inc MACRO
+	addq.b #1, D7
+	subq.b #1, D6
+	ENDM
 	
 	;; in: D0b - byte to write
 	;; in/out: D7/D6
 buffer_push:
+	adjust_buffer_index D7
 	move.b D0, (A1, D7)
-	bra buffer_increment
+	unadjust_buffer_index D7
+	_buffer_inc
+	rts
 	
 	;; A0: input. pushes nul-terminated string
 _buffer_push_string_loop
+	adjust_buffer_index D7
 	move.b (A0)+, (A1, D7)
-	addq.w #SHARED_ADDR_STRIDE, D7
-	andi.w #SHARED_ADDR_MASK, D7
+	unadjust_buffer_index D7
+	_buffer_inc
 buffer_push_string:
 	tst.b (A0)
 	bne _buffer_push_string_loop
 	rts
 	
 	;; out: D0b - read byte
-	;; in/out: D7/D6
+	;; in/out: D7w/D6w
 buffer_pop:
-	move.b (A1, D7), D0			  ;
-	addq.w #SHARED_ADDR_STRIDE, D7 ;
-	andi.w #SHARED_ADDR_MASK, D7	 ;
-	subq.w #SHARED_ADDR_STRIDE, D6 ;
-	rts
-	;; option 2:
-	add.w D7, D7					  ;
-	move.b (A1, D7), D0			  ;
-	lsr.w #1, D7					  ;
-	addq.w #1, D7					  ;
-	subq.w #1, D6					  ;
-	;; option 4:
-	andi.w #$FF, D7
-	exg D7, A1						  ;D7=buffer, A1=index
-	adda.l A1, A1					  ;D7=buffer, A1=index*2
-	adda.l D7, A1					  ;D7=buffer, A1=buffer+index*2
-	move.b (A1)+, D0				  ;D7=buffer, A1=buffer+index*2+1
-	suba.l D7, A1  				  ;oh but then   its only incremented by 1 anyway. oops
-	suba.l D7, A1
-	exg D7, A1 						  ;see, because this increments D7 ehehe
-
-	
+	adjust_buffer_index D7
+	move.b (A1, D7), D0
+	unadjust_buffer_index D7
+	_buffer_inc
 	rts
 	
 	;; in/out: D7w - read/write offset
 	;; in/out: D6w - number of remaining slots
 	;; out: ZF - set if buffer is full (writing) / empty (reading)
-buffer_increment:	
-	addq.w #SHARED_ADDR_STRIDE, D7 ;8
-	andi.w #SHARED_ADDR_MASK, D7	 ;16
-	subq.w #SHARED_ADDR_STRIDE, D6 ;8
+buffer_increment:
+	_buffer_inc
 	rts
 	
 	IFDEF AUDIO
