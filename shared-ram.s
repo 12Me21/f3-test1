@@ -163,12 +163,10 @@ _buffer_begin_peek:
 	
 buffer_end_read:
 	store_spin D6, (A1, STREAM_READ)
-	store_spin D7, (A1, STREAM_WRITE)
 	atomic_end (A1, STREAM_READ_LOCK)
 	rts
 	
 buffer_end_write:
-	store_spin D6, (A1, STREAM_READ)
 	store_spin D7, (A1, STREAM_WRITE)
 	atomic_end (A1, STREAM_WRITE_LOCK)
 	rts
