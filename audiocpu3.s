@@ -112,7 +112,6 @@ user_0:
 b_tx_ready:	
 	lea STDOUT_0, A1
 	jsr buffer_begin_read
-	jsr buffer_check_remaining
 	beq .empy
 .inner:
 	jsr buffer_pop
@@ -230,15 +229,11 @@ setup_esp:
 	
 timer_ready:
 	lea STDOUT_0, A1
-	jsr buffer_begin_read
-	jsr buffer_check_remaining
+	jsr buffer_peek_read
 	beq .empy
 	move.b #DUART_CR_ENABLE_TX, (DUART_0+DUART_CRB)
-	;btst.b #2, (DUART_0+DUART_SRB)
-	;bne b_tx_ready.inner
 .empy:
-	jsr buffer_end_read
-
+	
 	jsr shared_do_commands
 	rts
 	

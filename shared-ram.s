@@ -119,7 +119,7 @@ atomic_begin_FORCE MACRO lock
 	
 atomic_begin_sync MACRO lock
 .loop:
-	nop2
+	nop
 	tas.b lock
 	bmi .loop ;todo: we should have a delay before checking again, so we don't slow down the other device
 	ENDM
@@ -142,46 +142,59 @@ store_spin MACRO register, location
 	ENDIF
 	move.b register, location
 	ENDM
-	
-	;; register usage:
-	;; D6: read offset
-	;; D7: write offset
-	;; A1: pointer to buffer struct
+
+	;; in: A1 - buffer struct
+	;; out: D7w - read offset
+	;; out: D6w - number of filled slots
+	;; out: ZF - set if buffer is empty
 buffer_begin_read:
 	atomic_begin_sync (A1, STREAM_READ_LOCK)
-	bra _buffer_begin_peek
-	
-buffer_begin_write:
-	atomic_begin_sync (A1, STREAM_WRITE_LOCK)
-	bra _buffer_begin_peek
-	
-	;; has no end_peek, because we don't touch anything
-_buffer_begin_peek:
-	load_spin (A1, STREAM_READ), D6
-	load_spin (A1, STREAM_WRITE), D7
+	;; same as begin_read, but does not lock
+	;; ONLY use this for checking emptyness or peeking, do not call end_read
+buffer_peek_read:
+	load_spin (A1, STREAM_READ), D7
+	load_spin (A1, STREAM_WRITE), D6
+	sub.w D7, D6
 	rts
 	
+	;; in: A1 - buffer struct
+	;; out: D7w - write offset
+	;; out: D6w - number of empty slots
+	;; out: ZF - set if buffer is full
+buffer_begin_write:
+	atomic_begin_sync (A1, STREAM_WRITE_LOCK)
+	;; same as begin_write, but does not lock
+	;; ONLY use this for checking fullness, do not write or call end_write
+buffer_peek_write:
+	load_spin (A1, STREAM_WRITE), D7
+	load_spin (A1, STREAM_READ), D6
+	sub.w D7, D6
+	rts
+	
+	;; in: A1 - buffer struct
+	;; in: D7w - read offset
 buffer_end_read:
-	store_spin D6, (A1, STREAM_READ)
+	store_spin D7, (A1, STREAM_READ)
 	atomic_end (A1, STREAM_READ_LOCK)
 	rts
 	
+	;; in: A1 - buffer struct
+	;; in: D7w - write offset
 buffer_end_write:
 	store_spin D7, (A1, STREAM_WRITE)
 	atomic_end (A1, STREAM_WRITE_LOCK)
 	rts
 	
+	;; in: D6w - number of REMAINING slots
+	;; out: ZF - set if buffer is empty (read) or full (write)
 buffer_check_remaining:	
-	cmp.w D7, D6
+	tst.w D6
 	rts
 	
 	;; D0: input
 buffer_push:
 	move.b D0, (A1, D7)
-buffer_increment_write:
-	addq.w #SHARED_ADDR_STRIDE, D7
-	andi.w #SHARED_ADDR_MASK, D7
-	rts
+	bra buffer_increment
 	
 	;; A0: input. pushes nul-terminated string
 _buffer_push_string_loop
@@ -195,17 +208,17 @@ buffer_push_string:
 	
 	;; D0: output
 buffer_pop:
-	move.b (A1, D6), D0
-buffer_increment_read:
-	addq.w #SHARED_ADDR_STRIDE, D6
-	andi.w #SHARED_ADDR_MASK, D6
-	rts
+	move.b (A1, D7), D0
+	bra buffer_increment
 	
-buffer_peek:
-	move.b (A1, D6), D0
+	;; in/out: D7w - read/write offset
+	;; in/out: D6w - number of remaining slots
+	;; out: ZF - set if buffer is full (writing) / empty (reading)
+buffer_increment:	
+	addq.w #SHARED_ADDR_STRIDE, D7
+	andi.w #SHARED_ADDR_MASK, D7
+	subq.w #SHARED_ADDR_STRIDE, D6
 	rts
-
-	;; todo: command to just check if buffer has anything in it
 	
 	IFDEF AUDIO
 	ELSE
@@ -413,9 +426,10 @@ shared_do_commands:
 	
 	lea STDIN_0, A1
 	jsr buffer_begin_read
-	bra .read_start
+	beq .done
 .read:
 	jsr buffer_pop
+	
 	clr.l D5
 	move.b D0, D5
 	movem.l	A1/D5/D6/D7, -(SP)
@@ -424,7 +438,7 @@ shared_do_commands:
 	movem.l	(SP)+, A1/D5/D6/D7
 	cmp.b #'\n', D5
 	beq .done
-.read_start:
+	
 	jsr buffer_check_remaining
 	bne .read
 .done:
