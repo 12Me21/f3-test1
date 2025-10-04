@@ -213,16 +213,37 @@ buffer_push_string:
 	;; out: D0b - read byte
 	;; in/out: D7/D6
 buffer_pop:
-	move.b (A1, D7), D0
-	bra buffer_increment
+	move.b (A1, D7), D0			  ;
+	addq.w #SHARED_ADDR_STRIDE, D7 ;
+	andi.w #SHARED_ADDR_MASK, D7	 ;
+	subq.w #SHARED_ADDR_STRIDE, D6 ;
+	rts
+	;; option 2:
+	add.w D7, D7					  ;
+	move.b (A1, D7), D0			  ;
+	lsr.w #1, D7					  ;
+	addq.w #1, D7					  ;
+	subq.w #1, D6					  ;
+	;; option 4:
+	andi.w #$FF, D7
+	exg D7, A1						  ;D7=buffer, A1=index
+	adda.l A1, A1					  ;D7=buffer, A1=index*2
+	adda.l D7, A1					  ;D7=buffer, A1=buffer+index*2
+	move.b (A1)+, D0				  ;D7=buffer, A1=buffer+index*2+1
+	suba.l D7, A1  				  ;oh but then   its only incremented by 1 anyway. oops
+	suba.l D7, A1
+	exg D7, A1 						  ;see, because this increments D7 ehehe
+
+	
+	rts
 	
 	;; in/out: D7w - read/write offset
 	;; in/out: D6w - number of remaining slots
 	;; out: ZF - set if buffer is full (writing) / empty (reading)
 buffer_increment:	
-	addq.w #SHARED_ADDR_STRIDE, D7
-	andi.w #SHARED_ADDR_MASK, D7
-	subq.w #SHARED_ADDR_STRIDE, D6
+	addq.w #SHARED_ADDR_STRIDE, D7 ;8
+	andi.w #SHARED_ADDR_MASK, D7	 ;16
+	subq.w #SHARED_ADDR_STRIDE, D6 ;8
 	rts
 	
 	IFDEF AUDIO
