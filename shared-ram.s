@@ -155,6 +155,7 @@ buffer_peek_read:
 	load_spin (A1, STREAM_READ), D7
 	load_spin (A1, STREAM_WRITE), D6
 	sub.w D7, D6
+	andi.w #SHARED_ADDR_MASK, D6
 	rts
 	
 	;; in: A1 - buffer struct
@@ -169,6 +170,8 @@ buffer_peek_write:
 	load_spin (A1, STREAM_WRITE), D7
 	load_spin (A1, STREAM_READ), D6
 	sub.w D7, D6
+	subq.w #1, D6  ; subtract 1 so we never write to the final slot and break everything
+	andi.w #SHARED_ADDR_MASK, D6
 	rts
 	
 	;; in: A1 - buffer struct
@@ -191,7 +194,8 @@ buffer_check_remaining:
 	tst.w D6
 	rts
 	
-	;; D0: input
+	;; in: D0b - byte to write
+	;; in/out: D7/D6
 buffer_push:
 	move.b D0, (A1, D7)
 	bra buffer_increment
@@ -206,7 +210,8 @@ buffer_push_string:
 	bne _buffer_push_string_loop
 	rts
 	
-	;; D0: output
+	;; out: D0b - read byte
+	;; in/out: D7/D6
 buffer_pop:
 	move.b (A1, D7), D0
 	bra buffer_increment
