@@ -1,0 +1,77 @@
+ok so simple case, buffer with 4 items in it:
+
+here is the buffer empty:
+ v--------read pointer
+[. . . .]
+ ^------write pointer
+
+then we write "A"
+ v--------read pointer
+[A . . .]
+   ^------write pointer
+
+pushing "efg" results in:
+ v--------read pointer
+[A e f g]
+ ^------write pointer
+ 
+notice how technically the buffer can contain all this, but we can no longer tell that it's not empty!
+though, based on context, we sort of can (i.e. if, after a write, the buffer is full, we know it's full and not empty)
+
+anyway so  we limit the buffer to having n-1 items in it, sure.
+but then, how do we tell if it's full?
+
+ v--------read pointer
+[A e f .]
+       ^------write pointer
+right now we're here, and we want to say
+i suppose, check if write+1 == read
+like, to push a byte we do
+addq.w #1, wp
+cmp.w wp, rp
+beq darn
+subq.w #1, wp
+move.b D0, (A1, wp)
+addq.w #1, wp
+
+but that's kinda messy.
+
+what if instead we just calculate the length at the beginning, and keep that updated?
+
+but that wastes another register...
+
+oh but actually  since each session only uses one register aside from checking full/empty-ness, we can convert the other into a length instead.
+
+so how to calculate a length..
+
+case 1: (read pointer behind write pointer)
+
+   v--------read pointer
+[. A B .]
+       ^------write pointer
+
+write = 3, read = 1
+write-read = 2
+
+case 2: (read pointer ahead of write pointer)
+
+       v--------read pointer
+[B . . A]
+   ^------write pointer
+
+write = 1, read = 3
+write-read = -2
+(write-read & 0b11) = 2
+
+so, all we have to do is,
+
+begin_write:
+ - lock wp
+ - load wp and rp
+ - sub wp, rp - rp tells us how many empty spots are available to write
+ ...
+ 
+begin_read:
+ - lock rp
+ - load wp and rp
+ - sub rp, wp - wp tells us how many filled spots are available to read
