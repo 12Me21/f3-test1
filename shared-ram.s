@@ -9,7 +9,6 @@ SHARED_ADDR_STRIDE = 1
 SHARED_ADDR_MASK = (~($100*SHARED_ADDR_STRIDE))
 CPU_ID = 0
 	ENDIF
-	WARNING "SHARED_ADDR_MASK = \{SHARED_ADDR_MASK}"
 dpram_addr	FUNCTION x, DPRAM_0+x*SHARED_ADDR_STRIDE
 
 STREAM STRUCT
@@ -355,6 +354,9 @@ ps_default:
 
 	cmp.b #'a', D5
 	beq .command_a
+	
+	cmp.b #'w', D5
+	beq .command_w
 
 .unknown:							  ;nop
 	bra parser_finish
@@ -385,6 +387,13 @@ ps_default:
 	push.l D0
 	printf4 1, "%02X\n"
 	
+	bra parser_finish
+.command_w:							  ;write (todo: size)
+	move.l parser_addr, A0
+	move.l parser_acc, D0
+	move.b D0, (A0)+
+	move.l A0, parser_addr
+	printf4 0, "w\n"
 	bra parser_finish
 .test:
 	dc.b "TEST123\0"
