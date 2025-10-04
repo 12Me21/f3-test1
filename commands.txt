@@ -112,3 +112,7 @@ s2
 a600000
 r
 hm yeahh ok later
+
+no that syntax sucks because it triggers at the end of the hex number which may never even happen if we dont get a newline etc.
+the letter should activate the command, for sure.
+reverted
