@@ -116,3 +116,15 @@ hm yeahh ok later
 no that syntax sucks because it triggers at the end of the hex number which may never even happen if we dont get a newline etc.
 the letter should activate the command, for sure.
 reverted
+
+
+
+these dont modify addr (so you can repeatedly check the same spot)
+w - write acc to addr
+r - read from addr, print
+these are for longer amounts
+d - read acc bytes from addr (increment after each)
+f - write many bytes   idk how to make that syntax work
+
+maybe you do like
+$<length> f- and then it hijacks the stream and copies that many raw bytes directly to memory, then returns control to the parser.

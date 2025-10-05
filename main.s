@@ -12,12 +12,14 @@ SOUND_RESET_CLEAR = $C80000
 TEXT_RAM = $61C000
 
 DPRAM_0 = $C00000
+FIO_0 = $4A0000
+
 PVT_X = $660018
 PVT_Y = $66001A
 PIVOT_PORT = $621000
 LINERAM = $620000
 SPRITE_RAM = $600000
-FIO = $4a0000
+
 PF_CONTROL = $660000
 
 RAM_BASE = $408000
@@ -40,7 +42,7 @@ enable_interrupts	macro
 	endm
 
 kick_watchdog macro
-	move.b	#0, FIO+0
+	clr.b FIO_0
 	endm
 	
 RESET_SP:
@@ -337,12 +339,13 @@ load_system_palettes:
 	
 	rts
 
-setup_fio:	
-	move.b #0,$4a0000
-	move.b #0,$4a0006
-	move.b #255,$4a0016
-	move.b #0,$4a0004
-	move.b #0,$4a0014
+setup_fio:
+	lea FIO_0, A4
+	move.b #$00, (A4, $00)
+	move.b #$00, (A4, $06)
+	move.b #$FF, (A4, $16)
+	move.b #$00, (A4, $04)
+	move.b #$00, (A4, $14)
 	rts
 	
 setup_graphics_ram:	
@@ -430,13 +433,13 @@ loop:
 	;; up down left right b1 b2 b3 start
 buttons:	
 .read_p1:
-	move.b FIO+2, D0
+	move.b FIO_0+2, D0
 	bfextu D0{32-4-1:1}, D0
 	bfins D0, D1{32-7-1:1}
-	move.b FIO+3, D0
+	move.b FIO_0+3, D0
 	bfextu D0{32-0-3:3}, D0
 	bfins D0, D1{32-4-3:3}
-	move.b FIO+7, D0
+	move.b FIO_0+7, D0
 	bfextu D0{32-0-4:4}, D0
 	bfins D0, D1{32-0-4:4}
 	move D1, D0

@@ -2,7 +2,7 @@
 	SUPMODE ON
 	PADDING ON
 IS_AUDIO = 1
-OVERRIDE_STDIN = 1
+;OVERRIDE_STDIN = 1
 	ORG $0
 	PHASE $C00000
 
@@ -85,7 +85,7 @@ entry:
 	jmp spin
 
 test_input:	
-	dc.b "$0 t\n i $4 s $604000 a $AB w $CD w $000400 a $4 s $100 r\n", 0
+	dc.b "$0 t\n i $2 s $604000 a $ABCD w r\n", 0
 
 user_0:	
 	movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)

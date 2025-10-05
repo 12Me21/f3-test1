@@ -398,53 +398,53 @@ ps_default:
 .command_r:							  ;read. todo: implement the read sizes better, and length control
 	move.l parser_addr, A0
 	clr.l D0
-	move.l parser_acc, D1
-	subq.l #1, D1
 	
 	cmp.b #2, parser_data_size
 	beq .word
 	cmp.b #4, parser_data_size
 	beq .long
 	
-.r_1_loop:
 	move.b (A0)+, D0
-	move.l A0, parser_addr
 	
 	push.l D0
 	printf4 1, "%02X\n"
-	dbf D1, .r_1_loop
+	
+	bra parser_finish
+.word:
+	move.w (A0)+, D0
+	
+	push.l D0
+	printf4 1, "%04X\n"
+	
+	bra parser_finish
+.long:
+	move.l (A0)+, D0
+	
+	push.l D0
+	printf4 1, "%08X\n"
 	
 	bra parser_finish
 .command_w:							  ;write (todo: size)
 	move.l parser_addr, A0
 	move.l parser_acc, D0
+	
+	cmp.b #2, parser_data_size
+	beq .w_word
+	cmp.b #4, parser_data_size
+	beq .w_long
+
 	move.b D0, (A0)+
-	move.l A0, parser_addr
+	
 	printf4 0, "w\n"
 	bra parser_finish
-.test:
-	dc.b "TEST123\0"
-.word:
-.r_2_loop:
-	move.w (A0)+, D0
-	move.l A0, parser_addr
-	
-	push.l D0
-	printf4 1, "%04X\n"
-	dbf D1, .r_2_loop
-	
+.w_word:
+	move.w D0, (A0)+
+	printf4 0, "w\n"
 	bra parser_finish
-.long:
-.r_4_loop:
-	move.l (A0)+, D0
-	move.l A0, parser_addr
-	
-	push.l D0
-	printf4 1, "%08X\n"
-	dbf D1, .r_4_loop
-	
+.w_long:
+	move.l D0, (A0)+
+	printf4 0, "w\n"
 	bra parser_finish
-
 .command_s:							  ;data size
 	move.b parser_acc+3, parser_data_size ;todo: bounds check!
 	clr.l parser_acc
