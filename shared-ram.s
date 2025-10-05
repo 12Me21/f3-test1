@@ -141,6 +141,14 @@ unadjust_buffer_index MACRO reg
 	ENDIF
 	ENDM
 
+buffer_check_read_lock:	
+	tst.b (A1, STREAM_READ_LOCK)
+	rts
+	
+buffer_check_write_lock:	
+	tst.b (A1, STREAM_WRITE_LOCK)
+	rts
+
 	;; in: A1 - buffer struct
 	;; out: D7w - read offset
 	;; out: D6w - number of filled slots
@@ -202,6 +210,10 @@ _buffer_inc MACRO
 	;; in: D0b - byte to write
 	;; in/out: D7/D6
 buffer_push:
+	tst.b D6
+	bne .ok
+	jsr buffer_busy_wait_write
+.ok:
 	adjust_buffer_index D7
 	move.b D0, (A1, D7)
 	unadjust_buffer_index D7
@@ -235,6 +247,17 @@ buffer_increment:
 	_buffer_inc
 	rts
 	
+buffer_busy_wait_write:
+	clr.l D6
+.loop:
+	nop
+	move.b (A1, STREAM_READ), D6
+	sub.b D7, D6
+	subq.b #1, D6
+	beq .loop
+	rts
+	
+
 	IFDEF AUDIO
 	ELSE
 	;; only one cpu should do this!
@@ -375,17 +398,21 @@ ps_default:
 .command_r:							  ;read. todo: implement the read sizes better, and length control
 	move.l parser_addr, A0
 	clr.l D0
+	move.l parser_acc, D1
+	subq.l #1, D1
 	
 	cmp.b #2, parser_data_size
 	beq .word
 	cmp.b #4, parser_data_size
 	beq .long
-
+	
+.r_1_loop:
 	move.b (A0)+, D0
 	move.l A0, parser_addr
 	
 	push.l D0
 	printf4 1, "%02X\n"
+	dbf D1, .r_1_loop
 	
 	bra parser_finish
 .command_w:							  ;write (todo: size)
@@ -398,19 +425,23 @@ ps_default:
 .test:
 	dc.b "TEST123\0"
 .word:
+.r_2_loop:
 	move.w (A0)+, D0
 	move.l A0, parser_addr
 	
 	push.l D0
 	printf4 1, "%04X\n"
+	dbf D1, .r_2_loop
 	
 	bra parser_finish
 .long:
+.r_4_loop:
 	move.l (A0)+, D0
 	move.l A0, parser_addr
 	
 	push.l D0
 	printf4 1, "%08X\n"
+	dbf D1, .r_4_loop
 	
 	bra parser_finish
 

@@ -20,7 +20,6 @@ SPRITE_RAM = $600000
 FIO = $4a0000
 PF_CONTROL = $660000
 
-	
 RAM_BASE = $408000
 pvy = $400040
 counter1 = $400048
@@ -28,8 +27,6 @@ abcd = $400050
 vblank_pc = $400100
 old_btn = $400180
 rising_btn = $400184
-edit = $400200
-edit_addr = $400204
 das = $400300
 	
 parser_variables = $400500
@@ -120,144 +117,7 @@ ex_f_line:
 	jsr print_ex_stack
 	rte
 
-
-	;; D0 - value
-	;; D7 - attr (low byte modified)
-	;; A4 - print dest (modified)
-print_hex_digit:
-	;bfextu D0{0:4}, D1 			  ;highest nibble
-	rol.l #4, D0
-	move.b D0, D7
-	andi.b #$F, D7
-	cmpi.b #9,D7
-	ble .small
-	addq.b #$7, D7
-.small:
-	addi.b #$30, D7
-	move.b D7, (A4)+
-	rts
-	;moveq #0, D1
-	;bfins D0, D1{32-4-3:4}		  ;d1 = [0nnn n000]
-	;abcd D1, D1						  ;d1 = [nnnn 0..0] x = carry
-
-;; A0 - source
-;; A4 - print dest
-;; D0, D1, D7 - modified
-print_hexl_line:
-.buffer = -$80
-	link.w	A6,#(.buffer)
-	lea (.buffer,A6), A4
-	move.l A0, D0
-	andi.l #(~$F), D0
-	move.l D0, A0
-	lsl.l #8, D0
-	move.l #$2000, D7
-	jsr print_hex_digit
-	jsr print_hex_digit
-	jsr print_hex_digit
-	jsr print_hex_digit
-	jsr print_hex_digit
-	;jsr print_hex_digit
-	move.b #'o', (A4)+
-	move.b #'|', (A4)+
-	
-	move.l #(4-1), D1
-.loop:
-	move.l (A0)+, D0
-	;move.l #$1100, D7
-	move.b #255, (A4)+
-	move.b #$17, (A4)+
-	jsr print_hex_digit
-	jsr print_hex_digit
-	;move.l #$1000, D7
-	move.b #255, (A4)+
-	move.b #$19, (A4)+
-	jsr print_hex_digit
-	jsr print_hex_digit
-	;move.l #$1100, D7
-	move.b #255, (A4)+
-	move.b #$18, (A4)+
-	jsr print_hex_digit
-	jsr print_hex_digit
-	;move.l #$1000, D7
-	move.b #255, (A4)+
-	move.b #$19, (A4)+
-	jsr print_hex_digit
-	jsr print_hex_digit
-	dbf D1, .loop
-	
-	move.b #0, (A4)+
-	
-	move.l A4, D0
-	bfclr	D0{32-1-6:6} 		  ; carriage return
-	;addi.w #row_delta, D0		  ; line feed
-	;andi.w #cursor_domain, D0
-	move.l D0, A4
-	lea (.buffer,A6), A4
-	unlk	A6
-	rts
-	
-hex_report:	
-	movem.l	A4/A1/A0/D7/D3/D1/D0, -(SP)
-	;move.l (edit_addr), D0
-	;bfextu D0{8:24}, D0
-	printf4 0, "------+00112233445566778899AABBCCDDEEFF\n"
-
-	move.l D0, A0
-	move.l #10, D3
-.loop:
-	jsr print_hexl_line
-	;move.b #0, (A4)+
-	
-	push.l A4
-	printf4 1, "%s\n\0"
-	
-	dbf D3, .loop
-	;; 
-	
-	printf4 0, " \n"
-	
-	movem.l	(SP)+, A4/A1/A0/D7/D3/D1/D0
-	rts
-	
 	
-	
-	;; A0: dest
-	;; D1: count (bytes)
-	;; uses: A2, D0, A0, D1
-copyimm:
-	movea.l	(SP), A2
-	bra .entry
-.loop:
-	move.b	(A2)+, (A0)+
-.entry:
-	dbf	D1, .loop
-.retn:
-	addq.w	#$1,A2
-	move.l	A2,D1
-	bclr.l	#$0,D1
-	move.l	D1,(SP)
-	rts
-	
-COPYIMM	MACRO	dest, length
-	lea	dest, A0
-	move	length, D1
-	jsr	copyimm
-	ENDM
-	
-	;; 
-;	movea.l (SP)+, A2
-	
-push_imm_str:						  ;temp
-	movea.l (SP), A2
-.loop:
-	tst.b	(A2)+
-	bne .loop
-	addq.l #1, A2
-	move.l A2, D7
-	bclr.l #0, D7
-	jmp (D7)
-	
 memcpyl:
 .dest equ.l 8
 .src equ.l .dest+4
@@ -493,7 +353,9 @@ setup_graphics_ram:
 	dbf D0, .loop1
 	rts
 	
-setup_timer:	
+setup_timer:
+	;; about 1 ms #$208B
+	;; ok for some reason these arent firing, is it mame? idk.
 	move.w #$0000, TIMER_CONTROL
 	rts
 	
@@ -558,7 +420,6 @@ loop:
 	;; read btns
 	jsr process_inputs
 .n1:
-	
 	jsr shared_do_commands
 .ret:
 	rts
@@ -620,48 +481,16 @@ buttons:
 
 	rts
 .down:
-	move.w edit, D2
-	lsl #2, D2
-	moveq.l #1, D0
-	lsl.l D2, D0
-	subi.l D0, edit_addr
 	rts
 .up:
-	move.w edit, D2
-	lsl #2, D2
-	moveq.l #1, D0
-	lsl.l D2, D0
-	addi.l D0, edit_addr
 	rts
 .right:
-	subi.w #1, edit
-	andi.w #$7, edit
 	rts
 .left:
-	addi.w #1, edit
-	andi.w #$7, edit
 	rts
 .a:
-	bfextu edit_addr{8:24},D0
-	jsr hex_report
-	bra .skip
-	move.l D0, A0
-	move.l (A0), D0
-	push.l D0
-	push.l A0
-	printf4 2, "\xFF\x04read [%6X] -> %08X\n\0abcdef"
-	move.b D0, edit_addr
-.skip:
 	rts
 .b:
-	bfextu edit_addr{8:24},D0
-	move.l D0, A0
-	moveq.l #0, D0
-	move.b edit_addr, D0
-	move.b D0, (A0)
-	push.l D0
-	push.l A0
-	printf4 2, "\xFF\x02write[%6X] <- %02X\n"
 	rts
 .c:
 	push.l #7
@@ -693,7 +522,6 @@ buttons:
 ;	push.l A0
 	printf4 1, "addr: %x\n"
 	
-	
 	rts
 .start:
 	rts
@@ -703,8 +531,6 @@ buttons:
 process_inputs:
 	;; read buttons
 	jsr buttons.read_p1
-	;push.l D1
-	;printf4 1, "btn: %x\n"
 	rts
 	
 vblank:
@@ -726,7 +552,10 @@ vblank:
 	rte
 	
 timer:
+	;movem.l A5/A4/A2/A1/A0/D5/D3/D2/D1/D0, -(SP)
+	;movem.l (SP)+, A5/A4/A2/A1/A0/D5/D3/D2/D1/D0
 	rte
+	
 vblank_2:
 	rte
 	
